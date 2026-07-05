@@ -1,0 +1,12 @@
+services:
+  meridian-hub:
+    build: .
+    image: liftbridgelabs/meridian-hub:latest
+    container_name: meridian-hub
+    ports:
+      - "34216:34216"
+    volumes:
+      - ./data:/data
+    environment:
+      - PORT=34216
+    restart: unless-stopped
