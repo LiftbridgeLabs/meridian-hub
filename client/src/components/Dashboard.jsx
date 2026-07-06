@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import DashboardHome from './DashboardHome'
 import Households from './Households'
 import HouseholdDetail from './HouseholdDetail'
 
 function Dashboard({ user, onLogout }) {
   const [selectedHousehold, setSelectedHousehold] = useState(null)
+  const [view, setView] = useState('home')
 
   return (
     <div className="dashboard">
@@ -20,7 +22,25 @@ function Dashboard({ user, onLogout }) {
         {selectedHousehold ? (
           <HouseholdDetail household={selectedHousehold} onBack={() => setSelectedHousehold(null)} />
         ) : (
-          <Households onManage={setSelectedHousehold} />
+          <>
+            <nav className="dashboard-tabs">
+              <button
+                type="button"
+                className={view === 'home' ? 'active' : ''}
+                onClick={() => setView('home')}
+              >
+                Home
+              </button>
+              <button
+                type="button"
+                className={view === 'households' ? 'active' : ''}
+                onClick={() => setView('households')}
+              >
+                Households
+              </button>
+            </nav>
+            {view === 'home' ? <DashboardHome /> : <Households onManage={setSelectedHousehold} />}
+          </>
         )}
       </main>
     </div>

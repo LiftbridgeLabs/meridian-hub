@@ -129,6 +129,73 @@
   overflow-y: auto;
 }
 
+.dashboard-tabs {
+  display: flex;
+  gap: 8px;
+  max-width: 720px;
+  margin: 0 auto 20px;
+}
+
+.dashboard-tabs button {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
+.dashboard-tabs button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dashboard-home {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.dashboard-home-header {
+  margin-bottom: 16px;
+}
+
+.dashboard-home-header h2 {
+  color: var(--accent);
+  margin: 0 0 4px;
+}
+
+.dashboard-home-header p {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.stats-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.stat-card span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.78rem;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-card strong {
+  color: var(--text);
+  font-size: 1.6rem;
+}
+
 .households {
   max-width: 720px;
   margin: 0 auto;
@@ -305,6 +372,31 @@
   letter-spacing: 0.04em;
 }
 
+.household-detail section + section {
+  margin-top: 32px;
+}
+
+.pairing-form {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) minmax(180px, 1fr) auto;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.pairing-form input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.pairing-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .playlist-form {
   display: flex;
   flex-direction: column;
@@ -348,4 +440,27 @@
 .playlist-form > button:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+@media (max-width: 680px) {
+  .dashboard-header,
+  .household-detail-header,
+  .playlist-form-row,
+  .household-form,
+  .pairing-form {
+    align-items: stretch;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .dashboard-user {
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .households-table {
+    display: block;
+    overflow-x: auto;
+  }
 }
