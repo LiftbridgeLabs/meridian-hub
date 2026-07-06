@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const authRoutes = require('./auth');
+const householdRoutes = require('./households');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -10,6 +11,7 @@ router.get('/health', (req, res) => {
 });
 
 router.use('/auth', authRoutes);
+router.use('/households', householdRoutes);
 
 router.get('/hub/settings', requireAuth, (req, res) => {
   const settings = db

@@ -1,3 +1,5 @@
+import Households from './Households'
+
 function Dashboard({ user, onLogout }) {
   return (
     <div className="dashboard">
@@ -11,7 +13,7 @@ function Dashboard({ user, onLogout }) {
         </div>
       </header>
       <main className="dashboard-main">
-        <p>Signed in. Household and device management is coming soon.</p>
+        <Households />
       </main>
     </div>
   )

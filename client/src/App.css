@@ -125,8 +125,92 @@
 
 .dashboard-main {
   flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.households {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.household-form {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.household-form input {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.household-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.household-form button {
+  background: var(--accent);
+  color: #0a0a0a;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.household-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.households-empty {
   color: var(--text-muted);
+}
+
+.households-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.households-table th,
+.households-table td {
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.households-table th {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.households-table tr:last-child td {
+  border-bottom: none;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+.link-button.danger {
+  color: #ff6b6b;
 }
