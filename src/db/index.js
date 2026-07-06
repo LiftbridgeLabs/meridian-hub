@@ -17,6 +17,15 @@ const hubSettingsColumns = db.prepare('PRAGMA table_info(hub_settings)').all().m
 if (!hubSettingsColumns.includes('jwt_secret')) {
   db.exec('ALTER TABLE hub_settings ADD COLUMN jwt_secret TEXT');
 }
+if (!hubSettingsColumns.includes('logo_mime')) {
+  db.exec('ALTER TABLE hub_settings ADD COLUMN logo_mime TEXT');
+}
+if (!hubSettingsColumns.includes('logo_data')) {
+  db.exec('ALTER TABLE hub_settings ADD COLUMN logo_data BLOB');
+}
+if (!hubSettingsColumns.includes('logo_updated_at')) {
+  db.exec('ALTER TABLE hub_settings ADD COLUMN logo_updated_at TEXT');
+}
 
 const playlistColumns = db.prepare('PRAGMA table_info(playlists)').all().map((c) => c.name);
 if (!playlistColumns.includes('sync_status')) {

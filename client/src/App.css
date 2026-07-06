@@ -103,8 +103,24 @@
 }
 
 .dashboard-brand {
+  align-items: center;
   color: var(--accent);
+  display: flex;
+  gap: 10px;
   font-weight: 700;
+  min-width: 0;
+}
+
+.dashboard-brand img {
+  height: 34px;
+  object-fit: contain;
+  width: 34px;
+}
+
+.dashboard-brand span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dashboard-user {
@@ -112,15 +128,87 @@
   align-items: center;
   gap: 12px;
   color: var(--text-muted);
+  position: relative;
 }
 
-.dashboard-user button {
+.dashboard-user button,
+.dashboard-user-menu {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 6px;
   padding: 6px 12px;
   cursor: pointer;
+}
+
+.dashboard-user-menu {
+  color: var(--accent);
+}
+
+.settings-popover {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+  min-width: 320px;
+  padding: 16px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 10;
+}
+
+.settings-header,
+.settings-logo-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.settings-header {
+  margin-bottom: 14px;
+}
+
+.settings-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.settings-form label {
+  color: var(--text-muted);
+  display: grid;
+  font-size: 0.85rem;
+  gap: 6px;
+}
+
+.settings-form input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.95rem;
+  padding: 8px 10px;
+}
+
+.settings-logo-row {
+  justify-content: flex-start;
+}
+
+.settings-logo-row img {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  height: 44px;
+  object-fit: contain;
+  padding: 4px;
+  width: 44px;
+}
+
+.settings-logo-row input[type='file'] {
+  display: none;
 }
 
 .dashboard-main {

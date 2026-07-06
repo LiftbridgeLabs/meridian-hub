@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 34216;
 const CLIENT_DIST = path.join(__dirname, 'client', 'dist');
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 app.use('/api', apiRoutes);
 
