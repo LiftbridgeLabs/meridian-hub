@@ -57,4 +57,9 @@ if (!playlistChannelColumns.includes('enabled')) {
   db.exec('ALTER TABLE playlist_channels ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1');
 }
 
+const profileColumns = db.prepare('PRAGMA table_info(profiles)').all().map((c) => c.name);
+if (!profileColumns.includes('assigned_playlist_id')) {
+  db.exec('ALTER TABLE profiles ADD COLUMN assigned_playlist_id INTEGER REFERENCES playlists(id) ON DELETE SET NULL');
+}
+
 module.exports = db;

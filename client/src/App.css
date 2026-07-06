@@ -487,6 +487,60 @@
   border-color: var(--accent);
 }
 
+.profile-form {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.profile-form-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(120px, 0.7fr);
+}
+
+.profile-form input,
+.profile-form select {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.95rem;
+  padding: 10px 12px;
+}
+
+.profile-form input:focus,
+.profile-form select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.checkbox-row {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.profile-category-picker {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  padding: 12px;
+}
+
+.profile-category-picker label {
+  align-items: center;
+  color: var(--text);
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
 .playlist-form {
   display: flex;
   flex-direction: column;
@@ -663,6 +717,7 @@
   .dashboard-header,
   .household-detail-header,
   .playlist-form-row,
+  .profile-form-row,
   .household-form,
   .pairing-form,
   .channel-filters,

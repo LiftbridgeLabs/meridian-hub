@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   name TEXT NOT NULL,
   icon TEXT,
   is_default INTEGER NOT NULL DEFAULT 0,
+  assigned_playlist_id INTEGER REFERENCES playlists(id) ON DELETE SET NULL,
   pin TEXT,
   allowed_categories TEXT,
   blocked_categories TEXT,

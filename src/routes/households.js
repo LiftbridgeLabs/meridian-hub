@@ -3,11 +3,13 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const deviceRoutes = require('./devices');
 const playlistRoutes = require('./playlists');
+const profileRoutes = require('./profiles');
 
 const router = express.Router();
 router.use(requireAuth);
 router.use('/:id/devices', deviceRoutes);
 router.use('/:id/playlists', playlistRoutes);
+router.use('/:id/profiles', profileRoutes);
 
 const HOUSEHOLD_FIELDS = ['name', 'enabled', 'timezone', 'language', 'theme'];
 

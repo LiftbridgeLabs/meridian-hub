@@ -36,6 +36,49 @@ router.get('/', (req, res) => {
   res.json(devices);
 });
 
+router.put('/:deviceId', (req, res) => {
+  const device = db
+    .prepare('SELECT * FROM devices WHERE id = ? AND household_id = ?')
+    .get(req.params.deviceId, req.params.id);
+  if (!device) return res.status(404).json({ error: 'Device not found' });
+
+  const updates = {};
+  if ('name' in req.body) {
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'Device name is required' });
+    updates.name = name;
+  }
+  if ('assigned_profile_id' in req.body || 'assignedProfileId' in req.body) {
+    const profileId = req.body.assigned_profile_id ?? req.body.assignedProfileId;
+    if (profileId) {
+      const profile = db.prepare('SELECT id FROM profiles WHERE id = ? AND household_id = ?').get(profileId, req.params.id);
+      if (!profile) return res.status(400).json({ error: 'Profile does not belong to this household' });
+    }
+    updates.assigned_profile_id = profileId || null;
+  }
+  if ('assigned_playlist_id' in req.body || 'assignedPlaylistId' in req.body) {
+    const playlistId = req.body.assigned_playlist_id ?? req.body.assignedPlaylistId;
+    if (playlistId) {
+      const playlist = db
+        .prepare('SELECT id FROM playlists WHERE id = ? AND household_id = ?')
+        .get(playlistId, req.params.id);
+      if (!playlist) return res.status(400).json({ error: 'Playlist does not belong to this household' });
+    }
+    updates.assigned_playlist_id = playlistId || null;
+  }
+
+  const fields = Object.keys(updates);
+  if (fields.length > 0) {
+    const setClause = fields.map((field) => `${field} = ?`).join(', ');
+    db.prepare(`UPDATE devices SET ${setClause}, push_pending = 1 WHERE id = ?`).run(
+      ...fields.map((field) => updates[field]),
+      req.params.deviceId
+    );
+  }
+
+  res.json(db.prepare('SELECT * FROM devices WHERE id = ?').get(req.params.deviceId));
+});
+
 router.delete('/:deviceId', (req, res) => {
   const result = db
     .prepare('DELETE FROM devices WHERE id = ? AND household_id = ?')

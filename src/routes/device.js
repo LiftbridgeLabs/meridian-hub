@@ -6,7 +6,22 @@ const router = express.Router();
 
 router.use(requireDeviceAuth);
 
-function playlistForDevice(device) {
+function parseIds(value) {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? parsed.map((id) => Number(id)).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function playlistForDevice(device, profile) {
+  if (profile?.assigned_playlist_id) {
+    return db
+      .prepare('SELECT * FROM playlists WHERE id = ? AND household_id = ?')
+      .get(profile.assigned_playlist_id, device.household_id);
+  }
+
   if (device.assigned_playlist_id) {
     return db
       .prepare('SELECT * FROM playlists WHERE id = ? AND household_id = ?')
@@ -23,7 +38,7 @@ router.get('/config', (req, res) => {
 
   db.prepare(
     `UPDATE devices
-     SET last_seen = datetime('now'), app_version = COALESCE(?, app_version)
+     SET last_seen = datetime('now'), app_version = COALESCE(?, app_version), push_pending = 0
      WHERE id = ?`
   ).run(appVersion, req.device.id);
 
@@ -43,7 +58,10 @@ router.get('/config', (req, res) => {
            LIMIT 1`
         )
         .get(req.device.household_id);
-  const playlist = playlistForDevice(req.device);
+  const playlist = playlistForDevice(req.device, profile);
+  const allowedCategoryIds = parseIds(profile?.allowed_categories);
+  const categoryFilter =
+    allowedCategoryIds.length > 0 ? `AND ch.category_id IN (${allowedCategoryIds.map(() => '?').join(',')})` : '';
   const channels = playlist
     ? db
         .prepare(
@@ -61,9 +79,10 @@ router.get('/config', (req, res) => {
            WHERE ch.playlist_id = ?
              AND ch.enabled = 1
              AND (c.enabled IS NULL OR c.enabled = 1)
+             ${categoryFilter}
            ORDER BY ch.sort_order ASC, name COLLATE NOCASE ASC`
         )
-        .all(playlist.id)
+        .all(playlist.id, ...allowedCategoryIds)
     : [];
   const epgSources = db
     .prepare('SELECT id, name, url, format FROM epg_sources WHERE household_id = ? ORDER BY created_at ASC')
@@ -76,10 +95,22 @@ router.get('/config', (req, res) => {
       platform: req.device.platform,
       assignedProfileId: req.device.assigned_profile_id,
       assignedPlaylistId: req.device.assigned_playlist_id,
-      pushPending: !!req.device.push_pending,
+      pushPending: false,
     },
     household,
-    profile: profile || null,
+    profile: profile
+      ? {
+          id: profile.id,
+          name: profile.name,
+          icon: profile.icon,
+          isDefault: !!profile.is_default,
+          assignedPlaylistId: profile.assigned_playlist_id,
+          pin: profile.pin,
+          allowedCategoryIds: parseIds(profile.allowed_categories),
+          blockedCategoryIds: parseIds(profile.blocked_categories),
+          favoriteChannelIds: parseIds(profile.favorites),
+        }
+      : null,
     playlist: playlist || null,
     channels,
     epgSources,

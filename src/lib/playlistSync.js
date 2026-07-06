@@ -127,6 +127,11 @@ function persistPlaylistItems(db, playlistId, data) {
     `INSERT INTO playlist_categories (playlist_id, remote_id, name, custom_name, enabled, is_custom, item_count)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
+  const updateCategory = db.prepare(
+    `UPDATE playlist_categories
+     SET name = ?, custom_name = ?, enabled = ?, item_count = ?
+     WHERE id = ?`
+  );
   const insertChannel = db.prepare(
     `INSERT INTO playlist_channels (
       playlist_id, category_id, remote_id, name, custom_name, stream_url, logo_url, enabled, sort_order, tvg_id, group_title
@@ -158,20 +163,39 @@ function persistPlaylistItems(db, playlistId, data) {
     }
 
     db.prepare('DELETE FROM playlist_channels WHERE playlist_id = ?').run(playlistId);
-    db.prepare('DELETE FROM playlist_categories WHERE playlist_id = ? AND is_custom = 0').run(playlistId);
+    const currentRemoteIds = data.categories.map((category) => category.remote_id).filter(Boolean);
+    if (currentRemoteIds.length > 0) {
+      db.prepare(
+        `DELETE FROM playlist_categories
+         WHERE playlist_id = ?
+           AND is_custom = 0
+           AND remote_id IS NOT NULL
+           AND remote_id NOT IN (${currentRemoteIds.map(() => '?').join(',')})`
+      ).run(playlistId, ...currentRemoteIds);
+    }
     db.prepare('UPDATE playlist_categories SET item_count = 0 WHERE playlist_id = ? AND is_custom = 1').run(playlistId);
 
     for (const category of data.categories) {
       const previous = categoryPrefs.get(category.remote_id || category.name.toLowerCase());
-      insertCategory.run(
-        playlistId,
-        category.remote_id || null,
-        category.name,
-        previous?.custom_name || null,
-        previous ? previous.enabled : 1,
-        0,
-        category.item_count || 0
-      );
+      if (previous && !previous.is_custom) {
+        updateCategory.run(
+          category.name,
+          previous.custom_name || null,
+          previous.enabled,
+          category.item_count || 0,
+          previous.id
+        );
+      } else {
+        insertCategory.run(
+          playlistId,
+          category.remote_id || null,
+          category.name,
+          null,
+          1,
+          0,
+          category.item_count || 0
+        );
+      }
     }
 
     for (const channel of data.channels) {

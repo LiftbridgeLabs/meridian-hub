@@ -11,6 +11,8 @@ const platformLabels = {
 
 function Devices({ householdId }) {
   const [devices, setDevices] = useState([])
+  const [profiles, setProfiles] = useState([])
+  const [playlists, setPlaylists] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [pairingCode, setPairingCode] = useState('')
@@ -21,7 +23,14 @@ function Devices({ householdId }) {
   async function load() {
     setLoading(true)
     try {
-      setDevices(await api(`/households/${householdId}/devices`))
+      const [deviceData, profileData, playlistData] = await Promise.all([
+        api(`/households/${householdId}/devices`),
+        api(`/households/${householdId}/profiles`),
+        api(`/households/${householdId}/playlists`),
+      ])
+      setDevices(deviceData)
+      setProfiles(profileData)
+      setPlaylists(playlistData)
       setError('')
     } catch (err) {
       setError(err.message)
@@ -75,6 +84,19 @@ function Devices({ householdId }) {
     }
   }
 
+  async function updateDevice(device, changes) {
+    setError('')
+    try {
+      await api(`/households/${householdId}/devices/${device.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(changes),
+      })
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   function formatLastSeen(device) {
     if (!device.last_seen) return 'Never'
     return new Date(device.last_seen).toLocaleString()
@@ -117,6 +139,7 @@ function Devices({ householdId }) {
               <th>Name</th>
               <th>Platform</th>
               <th>Playlist</th>
+              <th>Profile</th>
               <th>Last seen</th>
               <th></th>
             </tr>
@@ -126,7 +149,36 @@ function Devices({ householdId }) {
               <tr key={device.id}>
                 <td>{device.name}</td>
                 <td>{platformLabels[device.platform] || device.platform}</td>
-                <td>{device.assigned_playlist_name || 'Default'}</td>
+                <td>
+                  <select
+                    value={device.assigned_playlist_id || ''}
+                    onChange={(e) =>
+                      updateDevice(device, { assigned_playlist_id: e.target.value ? Number(e.target.value) : null })
+                    }
+                  >
+                    <option value="">Default</option>
+                    {playlists.map((playlist) => (
+                      <option key={playlist.id} value={playlist.id}>
+                        {playlist.name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
+                  <select
+                    value={device.assigned_profile_id || ''}
+                    onChange={(e) =>
+                      updateDevice(device, { assigned_profile_id: e.target.value ? Number(e.target.value) : null })
+                    }
+                  >
+                    <option value="">Default</option>
+                    {profiles.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
                 <td>{formatLastSeen(device)}</td>
                 <td>
                   <div className="row-actions">
