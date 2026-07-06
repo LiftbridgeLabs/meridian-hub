@@ -117,4 +117,13 @@ router.get('/config', (req, res) => {
   });
 });
 
+router.get('/status', (req, res) => {
+  res.json({
+    deviceId: req.device.id,
+    pushPending: !!req.device.push_pending,
+    lastSeen: req.device.last_seen,
+    appVersion: req.device.app_version,
+  });
+});
+
 module.exports = router;

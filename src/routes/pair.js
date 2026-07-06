@@ -31,6 +31,15 @@ function generateDeviceToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+function pairingPayload(req, code) {
+  const hubUrl = getHubUrl(req);
+  return {
+    hubUrl,
+    code,
+    deepLink: `meridian://pair?hub=${encodeURIComponent(hubUrl)}&code=${encodeURIComponent(code)}`,
+  };
+}
+
 router.post('/register', (req, res) => {
   cleanExpiredPairingRequests();
 
@@ -69,6 +78,7 @@ router.post('/register', (req, res) => {
     status: 'pending',
     code,
     expiresAt,
+    pairing: pairingPayload(req, code),
   });
 });
 
@@ -93,6 +103,7 @@ router.get('/status/:code', (req, res) => {
       deviceName: request.device_name,
       platform: request.platform,
       expiresAt: request.expires_at,
+      pairing: pairingPayload(req, code),
     });
   }
 
@@ -102,6 +113,7 @@ router.get('/status/:code', (req, res) => {
     deviceId: request.claimed_device_id,
     authToken: request.claimed_token,
     hubUrl: getHubUrl(req),
+    pairing: pairingPayload(req, code),
   });
 });
 

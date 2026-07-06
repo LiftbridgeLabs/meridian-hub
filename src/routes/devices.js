@@ -79,6 +79,14 @@ router.put('/:deviceId', (req, res) => {
   res.json(db.prepare('SELECT * FROM devices WHERE id = ?').get(req.params.deviceId));
 });
 
+router.post('/:deviceId/refresh', (req, res) => {
+  const result = db
+    .prepare('UPDATE devices SET push_pending = 1 WHERE id = ? AND household_id = ?')
+    .run(req.params.deviceId, req.params.id);
+  if (result.changes === 0) return res.status(404).json({ error: 'Device not found' });
+  res.json(db.prepare('SELECT * FROM devices WHERE id = ?').get(req.params.deviceId));
+});
+
 router.delete('/:deviceId', (req, res) => {
   const result = db
     .prepare('DELETE FROM devices WHERE id = ? AND household_id = ?')

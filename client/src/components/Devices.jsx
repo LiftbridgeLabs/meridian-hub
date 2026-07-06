@@ -97,6 +97,16 @@ function Devices({ householdId }) {
     }
   }
 
+  async function refreshDevice(device) {
+    setError('')
+    try {
+      await api(`/households/${householdId}/devices/${device.id}/refresh`, { method: 'POST' })
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   function formatLastSeen(device) {
     if (!device.last_seen) return 'Never'
     return new Date(device.last_seen).toLocaleString()
@@ -140,6 +150,7 @@ function Devices({ householdId }) {
               <th>Platform</th>
               <th>Playlist</th>
               <th>Profile</th>
+              <th>Status</th>
               <th>Last seen</th>
               <th></th>
             </tr>
@@ -179,9 +190,13 @@ function Devices({ householdId }) {
                     ))}
                   </select>
                 </td>
+                <td>{device.push_pending ? 'Refresh pending' : 'Current'}</td>
                 <td>{formatLastSeen(device)}</td>
                 <td>
                   <div className="row-actions">
+                    <button type="button" className="btn-small primary" onClick={() => refreshDevice(device)}>
+                      Refresh config
+                    </button>
                     <button type="button" className="btn-small danger" onClick={() => deleteDevice(device)}>
                       Remove
                     </button>
