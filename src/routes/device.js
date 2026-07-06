@@ -44,6 +44,24 @@ router.get('/config', (req, res) => {
         )
         .get(req.device.household_id);
   const playlist = playlistForDevice(req.device);
+  const channels = playlist
+    ? db
+        .prepare(
+          `SELECT
+            id,
+            remote_id,
+            COALESCE(NULLIF(custom_name, ''), name) AS name,
+            stream_url,
+            logo_url,
+            tvg_id,
+            group_title,
+            sort_order
+           FROM playlist_channels
+           WHERE playlist_id = ? AND enabled = 1
+           ORDER BY sort_order ASC, name COLLATE NOCASE ASC`
+        )
+        .all(playlist.id)
+    : [];
   const epgSources = db
     .prepare('SELECT id, name, url, format FROM epg_sources WHERE household_id = ? ORDER BY created_at ASC')
     .all(req.device.household_id);
@@ -60,6 +78,7 @@ router.get('/config', (req, res) => {
     household,
     profile: profile || null,
     playlist: playlist || null,
+    channels,
     epgSources,
   });
 });

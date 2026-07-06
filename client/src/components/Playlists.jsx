@@ -30,6 +30,8 @@ function Playlists({ householdId }) {
   const [channelLoading, setChannelLoading] = useState(false)
   const [channelSearch, setChannelSearch] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [visibility, setVisibility] = useState('all')
+  const [channelEdits, setChannelEdits] = useState({})
 
   async function load() {
     setLoading(true)
@@ -87,15 +89,20 @@ function Playlists({ householdId }) {
     try {
       const nextCategoryId = options.categoryId ?? categoryId
       const nextSearch = options.search ?? channelSearch
+      const nextVisibility = options.visibility ?? visibility
       const params = new URLSearchParams({ limit: '100' })
       if (nextCategoryId) params.set('category_id', nextCategoryId)
       if (nextSearch.trim()) params.set('search', nextSearch.trim())
+      if (nextVisibility !== 'all') params.set('visibility', nextVisibility)
       const [categoryData, channelData] = await Promise.all([
         api(`/households/${householdId}/playlists/${playlistId}/categories`),
         api(`/households/${householdId}/playlists/${playlistId}/channels?${params.toString()}`),
       ])
       setCategories(categoryData)
       setChannels(channelData)
+      setChannelEdits(
+        Object.fromEntries(channelData.map((channel) => [channel.id, channel.custom_name || channel.name]))
+      )
       setError('')
     } catch (err) {
       setError(err.message)
@@ -108,7 +115,36 @@ function Playlists({ householdId }) {
     setSelectedPlaylist(playlist)
     setCategoryId('')
     setChannelSearch('')
-    await loadChannels(playlist.id, { categoryId: '', search: '' })
+    setVisibility('all')
+    await loadChannels(playlist.id, { categoryId: '', search: '', visibility: 'all' })
+  }
+
+  async function updateChannel(channel, changes) {
+    if (!selectedPlaylist) return
+    setError('')
+    try {
+      await api(`/households/${householdId}/playlists/${selectedPlaylist.id}/channels/${channel.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(changes),
+      })
+      await loadChannels(selectedPlaylist.id)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function updateCategory(category, enabled) {
+    if (!selectedPlaylist) return
+    setError('')
+    try {
+      await api(`/households/${householdId}/playlists/${selectedPlaylist.id}/categories/${category.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled, applyToChannels: true }),
+      })
+      await loadChannels(selectedPlaylist.id)
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   async function handleCreate(e) {
@@ -172,8 +208,8 @@ function Playlists({ householdId }) {
 
   function syncSummary(p) {
     if (p.sync_status === 'synced') {
-      const when = p.last_synced_at ? ` | ${new Date(`${p.last_synced_at}Z`).toLocaleString()}` : ''
-      return `${p.channel_count || 0} channels | ${p.category_count || 0} categories${when}`
+      const when = p.last_synced_at ? new Date(`${p.last_synced_at}Z`).toLocaleString() : 'recently'
+      return `${p.channel_count || 0} channels, ${p.category_count || 0} categories · ${when}`
     }
     if (p.sync_status === 'syncing') return 'Sync in progress'
     if (p.sync_status === 'error') return p.sync_error || 'Last sync failed'
@@ -258,7 +294,14 @@ function Playlists({ householdId }) {
       ) : playlists.length === 0 ? (
         <p className="households-empty">No playlists yet. Add one above.</p>
       ) : (
-        <table className="households-table">
+        <table className="households-table playlist-table">
+          <colgroup>
+            <col className="playlist-name-col" />
+            <col className="playlist-type-col" />
+            <col />
+            <col className="playlist-imported-col" />
+            <col className="playlist-actions-col" />
+          </colgroup>
           <thead>
             <tr>
               <th>Name</th>
@@ -337,8 +380,8 @@ function Playlists({ householdId }) {
                   <tr key={p.id}>
                     <td>{p.name}</td>
                     <td>{p.type === 'xtream' ? 'Xtream' : 'M3U'}</td>
-                    <td>{sourceSummary(p)}</td>
-                    <td>{syncSummary(p)}</td>
+                    <td className="wrap-cell">{sourceSummary(p)}</td>
+                    <td className="muted-cell">{syncSummary(p)}</td>
                     <td>
                       <div className="row-actions">
                         <button type="button" className="btn-small" onClick={() => runTest(p.id, p)}>
@@ -408,6 +451,17 @@ function Playlists({ householdId }) {
                 </option>
               ))}
             </select>
+            <select
+              value={visibility}
+              onChange={(e) => {
+                setVisibility(e.target.value)
+                loadChannels(selectedPlaylist.id, { visibility: e.target.value })
+              }}
+            >
+              <option value="all">All channels</option>
+              <option value="visible">Visible only</option>
+              <option value="hidden">Hidden only</option>
+            </select>
             <input
               type="text"
               placeholder="Search channels"
@@ -426,21 +480,72 @@ function Playlists({ householdId }) {
             <table className="households-table">
               <thead>
                 <tr>
+                  <th>Status</th>
                   <th>Channel</th>
                   <th>Category</th>
                   <th>EPG ID</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {channels.map((channel) => (
                   <tr key={channel.id}>
-                    <td>{channel.name}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className={`btn-small ${channel.enabled ? 'primary' : ''}`}
+                        onClick={() => updateChannel(channel, { enabled: !channel.enabled })}
+                      >
+                        {channel.enabled ? 'Visible' : 'Hidden'}
+                      </button>
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        value={channelEdits[channel.id] ?? channel.display_name ?? channel.name}
+                        onChange={(e) => setChannelEdits({ ...channelEdits, [channel.id]: e.target.value })}
+                      />
+                    </td>
                     <td>{channel.category_name || channel.group_title || 'Uncategorized'}</td>
                     <td>{channel.tvg_id || '-'}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="btn-small primary"
+                          onClick={() => updateChannel(channel, { custom_name: channelEdits[channel.id] })}
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-small"
+                          onClick={() => updateChannel(channel, { custom_name: '' })}
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          )}
+          {categoryId && (
+            <div className="channel-bulk-actions">
+              {categories
+                .filter((category) => String(category.id) === String(categoryId))
+                .map((category) => (
+                  <div className="row-actions" key={category.id}>
+                    <button type="button" className="btn-small primary" onClick={() => updateCategory(category, true)}>
+                      Show category
+                    </button>
+                    <button type="button" className="btn-small danger" onClick={() => updateCategory(category, false)}>
+                      Hide category
+                    </button>
+                  </div>
+                ))}
+            </div>
           )}
         </section>
       )}

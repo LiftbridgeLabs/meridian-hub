@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS playlist_categories (
   playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
   remote_id TEXT,
   name TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
   item_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (playlist_id, remote_id)
@@ -61,8 +62,10 @@ CREATE TABLE IF NOT EXISTS playlist_channels (
   category_id INTEGER REFERENCES playlist_categories(id) ON DELETE SET NULL,
   remote_id TEXT,
   name TEXT NOT NULL,
+  custom_name TEXT,
   stream_url TEXT NOT NULL,
   logo_url TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
   sort_order INTEGER NOT NULL DEFAULT 0,
   tvg_id TEXT,
   group_title TEXT,

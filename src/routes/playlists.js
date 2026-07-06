@@ -105,6 +105,39 @@ router.get('/:playlistId/categories', (req, res) => {
   res.json(categories);
 });
 
+router.patch('/:playlistId/categories/:categoryId', (req, res) => {
+  const category = db
+    .prepare(
+      `SELECT c.*
+       FROM playlist_categories c
+       JOIN playlists p ON p.id = c.playlist_id
+       WHERE c.id = ? AND c.playlist_id = ? AND p.household_id = ?`
+    )
+    .get(req.params.categoryId, req.params.playlistId, req.params.id);
+  if (!category) return res.status(404).json({ error: 'Category not found' });
+
+  const updates = {};
+  if ('enabled' in req.body) updates.enabled = req.body.enabled ? 1 : 0;
+
+  const fields = Object.keys(updates);
+  if (fields.length > 0) {
+    const setClause = fields.map((field) => `${field} = ?`).join(', ');
+    db.prepare(`UPDATE playlist_categories SET ${setClause} WHERE id = ?`).run(
+      ...fields.map((field) => updates[field]),
+      req.params.categoryId
+    );
+  }
+
+  if ('enabled' in updates && req.body.applyToChannels) {
+    db.prepare('UPDATE playlist_channels SET enabled = ? WHERE category_id = ?').run(
+      updates.enabled,
+      req.params.categoryId
+    );
+  }
+
+  res.json(db.prepare('SELECT * FROM playlist_categories WHERE id = ?').get(req.params.categoryId));
+});
+
 router.get('/:playlistId/channels', (req, res) => {
   const playlist = db
     .prepare('SELECT id FROM playlists WHERE id = ? AND household_id = ?')
@@ -114,6 +147,7 @@ router.get('/:playlistId/channels', (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
   const categoryId = req.query.category_id || req.query.categoryId || null;
   const search = String(req.query.search || '').trim();
+  const visibility = String(req.query.visibility || 'all');
   const conditions = ['ch.playlist_id = ?'];
   const params = [req.params.playlistId];
 
@@ -122,8 +156,14 @@ router.get('/:playlistId/channels', (req, res) => {
     params.push(categoryId);
   }
   if (search) {
-    conditions.push('ch.name LIKE ?');
-    params.push(`%${search}%`);
+    conditions.push('(ch.name LIKE ? OR ch.custom_name LIKE ?)');
+    params.push(`%${search}%`, `%${search}%`);
+  }
+  if (visibility === 'visible') {
+    conditions.push('ch.enabled = 1');
+  }
+  if (visibility === 'hidden') {
+    conditions.push('ch.enabled = 0');
   }
 
   const channels = db
@@ -134,7 +174,10 @@ router.get('/:playlistId/channels', (req, res) => {
         ch.category_id,
         ch.remote_id,
         ch.name,
+        ch.custom_name,
+        COALESCE(NULLIF(ch.custom_name, ''), ch.name) AS display_name,
         ch.logo_url,
+        ch.enabled,
         ch.sort_order,
         ch.tvg_id,
         ch.group_title,
@@ -147,6 +190,48 @@ router.get('/:playlistId/channels', (req, res) => {
     )
     .all(...params, limit);
   res.json(channels);
+});
+
+router.patch('/:playlistId/channels/:channelId', (req, res) => {
+  const channel = db
+    .prepare(
+      `SELECT ch.*
+       FROM playlist_channels ch
+       JOIN playlists p ON p.id = ch.playlist_id
+       WHERE ch.id = ? AND ch.playlist_id = ? AND p.household_id = ?`
+    )
+    .get(req.params.channelId, req.params.playlistId, req.params.id);
+  if (!channel) return res.status(404).json({ error: 'Channel not found' });
+
+  const updates = {};
+  if ('enabled' in req.body) updates.enabled = req.body.enabled ? 1 : 0;
+  if ('custom_name' in req.body || 'customName' in req.body) {
+    const value = String(req.body.custom_name ?? req.body.customName ?? '').trim();
+    updates.custom_name = value || null;
+  }
+
+  const fields = Object.keys(updates);
+  if (fields.length > 0) {
+    const setClause = fields.map((field) => `${field} = ?`).join(', ');
+    db.prepare(`UPDATE playlist_channels SET ${setClause} WHERE id = ?`).run(
+      ...fields.map((field) => updates[field]),
+      req.params.channelId
+    );
+  }
+
+  res.json(
+    db
+      .prepare(
+        `SELECT
+          ch.*,
+          COALESCE(NULLIF(ch.custom_name, ''), ch.name) AS display_name,
+          c.name AS category_name
+         FROM playlist_channels ch
+         LEFT JOIN playlist_categories c ON c.id = ch.category_id
+         WHERE ch.id = ?`
+      )
+      .get(req.params.channelId)
+  );
 });
 
 router.put('/:playlistId', (req, res) => {

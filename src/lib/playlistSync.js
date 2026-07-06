@@ -124,13 +124,13 @@ async function fetchXtreamPlaylist(playlist) {
 
 function persistPlaylistItems(db, playlistId, data) {
   const insertCategory = db.prepare(
-    `INSERT INTO playlist_categories (playlist_id, remote_id, name, item_count)
-     VALUES (?, ?, ?, ?)`
+    `INSERT INTO playlist_categories (playlist_id, remote_id, name, enabled, item_count)
+     VALUES (?, ?, ?, ?, ?)`
   );
   const insertChannel = db.prepare(
     `INSERT INTO playlist_channels (
-      playlist_id, category_id, remote_id, name, stream_url, logo_url, sort_order, tvg_id, group_title
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      playlist_id, category_id, remote_id, name, custom_name, stream_url, logo_url, enabled, sort_order, tvg_id, group_title
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const getCategory = db.prepare(
     `SELECT id FROM playlist_categories
@@ -140,24 +140,46 @@ function persistPlaylistItems(db, playlistId, data) {
   );
 
   const save = db.transaction(() => {
+    const existingCategories = db.prepare('SELECT * FROM playlist_categories WHERE playlist_id = ?').all(playlistId);
+    const existingChannels = db.prepare('SELECT * FROM playlist_channels WHERE playlist_id = ?').all(playlistId);
+    const categoryPrefs = new Map();
+    const channelPrefs = new Map();
+
+    for (const category of existingCategories) {
+      categoryPrefs.set(category.remote_id || category.name.toLowerCase(), category);
+    }
+    for (const channel of existingChannels) {
+      channelPrefs.set(channel.remote_id || `${channel.name}|${channel.group_title || ''}`, channel);
+    }
+
     db.prepare('DELETE FROM playlist_channels WHERE playlist_id = ?').run(playlistId);
     db.prepare('DELETE FROM playlist_categories WHERE playlist_id = ?').run(playlistId);
 
     for (const category of data.categories) {
-      insertCategory.run(playlistId, category.remote_id || null, category.name, category.item_count || 0);
+      const previous = categoryPrefs.get(category.remote_id || category.name.toLowerCase());
+      insertCategory.run(
+        playlistId,
+        category.remote_id || null,
+        category.name,
+        previous ? previous.enabled : 1,
+        category.item_count || 0
+      );
     }
 
     for (const channel of data.channels) {
       const category = channel.category_remote_id
         ? getCategory.get(playlistId, channel.category_remote_id, channel.category_remote_id)
         : null;
+      const previous = channelPrefs.get(channel.remote_id || `${channel.name}|${channel.group_title || ''}`);
       insertChannel.run(
         playlistId,
         category?.id || null,
         channel.remote_id || null,
         channel.name,
+        previous?.custom_name || null,
         channel.stream_url,
         channel.logo_url || null,
+        previous ? previous.enabled : 1,
         channel.sort_order || 0,
         channel.tvg_id || null,
         channel.group_title || null

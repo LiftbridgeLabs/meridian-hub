@@ -29,4 +29,17 @@ if (!playlistColumns.includes('last_synced_at')) {
   db.exec('ALTER TABLE playlists ADD COLUMN last_synced_at TEXT');
 }
 
+const playlistCategoryColumns = db.prepare('PRAGMA table_info(playlist_categories)').all().map((c) => c.name);
+if (!playlistCategoryColumns.includes('enabled')) {
+  db.exec('ALTER TABLE playlist_categories ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1');
+}
+
+const playlistChannelColumns = db.prepare('PRAGMA table_info(playlist_channels)').all().map((c) => c.name);
+if (!playlistChannelColumns.includes('custom_name')) {
+  db.exec('ALTER TABLE playlist_channels ADD COLUMN custom_name TEXT');
+}
+if (!playlistChannelColumns.includes('enabled')) {
+  db.exec('ALTER TABLE playlist_channels ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1');
+}
+
 module.exports = db;
