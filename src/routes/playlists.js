@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('../db');
+const { testPlaylist } = require('../lib/playlistTest');
 
 const router = express.Router({ mergeParams: true });
 
@@ -9,8 +10,8 @@ function getHousehold(householdId) {
   return db.prepare('SELECT id FROM households WHERE id = ?').get(householdId);
 }
 
-function validatePlaylist(body, { partial = false } = {}) {
-  if (!partial || 'name' in body) {
+function validatePlaylist(body, { partial = false, skipName = false } = {}) {
+  if (!skipName && (!partial || 'name' in body)) {
     if (!body.name || !body.name.trim()) return 'Playlist name is required';
   }
   if (!partial || 'type' in body) {
@@ -47,6 +48,20 @@ router.post('/', (req, res) => {
     .run(req.params.id, name.trim(), type, server_url || null, username || null, password || null, url || null);
 
   res.status(201).json(db.prepare('SELECT * FROM playlists WHERE id = ?').get(result.lastInsertRowid));
+});
+
+router.post('/test', async (req, res) => {
+  if (!getHousehold(req.params.id)) return res.status(404).json({ error: 'Household not found' });
+
+  const error = validatePlaylist(req.body, { skipName: true });
+  if (error) return res.status(400).json({ error });
+
+  try {
+    const result = await testPlaylist(req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
 });
 
 router.put('/:playlistId', (req, res) => {

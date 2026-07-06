@@ -3,6 +3,17 @@ import { api } from '../api'
 
 const emptyForm = { name: '', type: 'xtream', server_url: '', username: '', password: '', url: '' }
 
+function formatTestResult(result) {
+  if (result.channelCount !== undefined) {
+    return `✓ Connected — ${result.channelCount} channel${result.channelCount === 1 ? '' : 's'} found`
+  }
+  const parts = [`${result.liveChannels} live`, `${result.vodEntries} VOD`, `${result.seriesEntries} series`]
+  const expiry = result.expiresAt ? ` — expires ${new Date(result.expiresAt).toLocaleDateString()}` : ''
+  const connections =
+    result.maxConnections != null ? ` (${result.activeConnections ?? 0}/${result.maxConnections} connections)` : ''
+  return `✓ ${result.status || 'Active'}${expiry} — ${parts.join(', ')}${connections}`
+}
+
 function Playlists({ householdId }) {
   const [playlists, setPlaylists] = useState([])
   const [loading, setLoading] = useState(true)
@@ -11,6 +22,7 @@ function Playlists({ householdId }) {
   const [creating, setCreating] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState(emptyForm)
+  const [testResults, setTestResults] = useState({})
 
   async function load() {
     setLoading(true)
@@ -28,6 +40,19 @@ function Playlists({ householdId }) {
     load()
   }, [householdId])
 
+  async function runTest(key, data) {
+    setTestResults((prev) => ({ ...prev, [key]: { loading: true } }))
+    try {
+      const result = await api(`/households/${householdId}/playlists/test`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      })
+      setTestResults((prev) => ({ ...prev, [key]: { loading: false, ok: true, message: formatTestResult(result) } }))
+    } catch (err) {
+      setTestResults((prev) => ({ ...prev, [key]: { loading: false, ok: false, message: err.message } }))
+    }
+  }
+
   async function handleCreate(e) {
     e.preventDefault()
     setCreating(true)
@@ -38,6 +63,7 @@ function Playlists({ householdId }) {
         body: JSON.stringify(form),
       })
       setForm(emptyForm)
+      setTestResults((prev) => ({ ...prev, create: undefined }))
       await load()
     } catch (err) {
       setError(err.message)
@@ -86,6 +112,13 @@ function Playlists({ householdId }) {
     return p.type === 'xtream' ? `${p.server_url} (${p.username})` : p.url
   }
 
+  function TestResult({ resultKey }) {
+    const result = testResults[resultKey]
+    if (!result) return null
+    if (result.loading) return <p className="test-result">Testing...</p>
+    return <p className={`test-result ${result.ok ? 'ok' : 'fail'}`}>{result.ok ? result.message : `✗ ${result.message}`}</p>
+  }
+
   return (
     <div className="playlists">
       <form className="playlist-form" onSubmit={handleCreate}>
@@ -132,9 +165,15 @@ function Playlists({ householdId }) {
             />
           </div>
         )}
-        <button type="submit" disabled={creating}>
-          {creating ? 'Adding...' : 'Add playlist'}
-        </button>
+        <div className="row-actions">
+          <button type="submit" className="btn-small primary" disabled={creating}>
+            {creating ? 'Adding...' : 'Add playlist'}
+          </button>
+          <button type="button" className="btn-small" onClick={() => runTest('create', form)}>
+            Test connection
+          </button>
+        </div>
+        <TestResult resultKey="create" />
       </form>
 
       {error && <p className="auth-error">{error}</p>}
@@ -203,28 +242,48 @@ function Playlists({ householdId }) {
                         />
                       </div>
                     )}
-                    <button type="button" className="link-button" onClick={() => saveEdit(p.id)}>
-                      Save
-                    </button>{' '}
-                    <button type="button" className="link-button" onClick={() => setEditingId(null)}>
-                      Cancel
-                    </button>
+                    <div className="row-actions">
+                      <button type="button" className="btn-small primary" onClick={() => saveEdit(p.id)}>
+                        Save
+                      </button>
+                      <button type="button" className="btn-small" onClick={() => runTest(p.id, editForm)}>
+                        Test connection
+                      </button>
+                      <button type="button" className="btn-small" onClick={() => setEditingId(null)}>
+                        Cancel
+                      </button>
+                    </div>
+                    <TestResult resultKey={p.id} />
                   </td>
                 </tr>
               ) : (
-                <tr key={p.id}>
-                  <td>{p.name}</td>
-                  <td>{p.type === 'xtream' ? 'Xtream' : 'M3U'}</td>
-                  <td>{sourceSummary(p)}</td>
-                  <td>
-                    <button type="button" className="link-button" onClick={() => startEdit(p)}>
-                      Edit
-                    </button>{' '}
-                    <button type="button" className="link-button danger" onClick={() => handleDelete(p)}>
-                      Delete
-                    </button>
-                  </td>
-                </tr>
+                <>
+                  <tr key={p.id}>
+                    <td>{p.name}</td>
+                    <td>{p.type === 'xtream' ? 'Xtream' : 'M3U'}</td>
+                    <td>{sourceSummary(p)}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button type="button" className="btn-small" onClick={() => runTest(p.id, p)}>
+                          Test
+                        </button>
+                        <button type="button" className="btn-small" onClick={() => startEdit(p)}>
+                          Edit
+                        </button>
+                        <button type="button" className="btn-small danger" onClick={() => handleDelete(p)}>
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {testResults[p.id] && (
+                    <tr key={`${p.id}-result`}>
+                      <td colSpan={4}>
+                        <TestResult resultKey={p.id} />
+                      </td>
+                    </tr>
+                  )}
+                </>
               )
             )}
           </tbody>

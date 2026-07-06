@@ -138,35 +138,39 @@ function Households({ onManage }) {
                   </td>
                   <td>{h.device_count}</td>
                   <td colSpan={2}>
-                    <button type="button" className="link-button" onClick={() => saveEdit(h.id)}>
-                      Save
-                    </button>{' '}
-                    <button type="button" className="link-button" onClick={() => setEditingId(null)}>
-                      Cancel
-                    </button>
+                    <div className="row-actions">
+                      <button type="button" className="btn-small primary" onClick={() => saveEdit(h.id)}>
+                        Save
+                      </button>
+                      <button type="button" className="btn-small" onClick={() => setEditingId(null)}>
+                        Cancel
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 <tr key={h.id}>
                   <td>
-                    <button type="button" className="link-button" onClick={() => onManage(h)}>
+                    <button type="button" className="text-link" onClick={() => onManage(h)}>
                       {h.name}
                     </button>
                   </td>
                   <td>{h.timezone}</td>
                   <td>{h.device_count}</td>
                   <td>
-                    <button type="button" className="link-button" onClick={() => toggleEnabled(h)}>
+                    <button type="button" className="btn-small" onClick={() => toggleEnabled(h)}>
                       {h.enabled ? 'Enabled' : 'Disabled'}
                     </button>
                   </td>
                   <td>
-                    <button type="button" className="link-button" onClick={() => startEdit(h)}>
-                      Edit
-                    </button>{' '}
-                    <button type="button" className="link-button danger" onClick={() => handleDelete(h)}>
-                      Delete
-                    </button>
+                    <div className="row-actions">
+                      <button type="button" className="btn-small" onClick={() => startEdit(h)}>
+                        Edit
+                      </button>
+                      <button type="button" className="btn-small danger" onClick={() => handleDelete(h)}>
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )

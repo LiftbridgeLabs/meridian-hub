@@ -4,7 +4,7 @@ function HouseholdDetail({ household, onBack }) {
   return (
     <div className="household-detail">
       <div className="household-detail-header">
-        <button type="button" className="link-button" onClick={onBack}>
+        <button type="button" className="text-link" onClick={onBack}>
           ← Back to households
         </button>
         <h2>{household.name}</h2>
