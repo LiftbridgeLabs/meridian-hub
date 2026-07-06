@@ -1,13 +1,22 @@
 import { useEffect, useState } from 'react'
 import { api, getToken, setToken, clearToken } from './api'
 import AuthForm from './components/AuthForm'
+import ClaimDevice from './components/ClaimDevice'
 import Dashboard from './components/Dashboard'
 import './App.css'
+
+function getPairCodeFromLocation() {
+  const pathMatch = window.location.pathname.match(/^\/pair\/(\d{6})$/)
+  if (pathMatch) return pathMatch[1]
+  const queryCode = new URLSearchParams(window.location.search).get('code')
+  return queryCode && /^\d{6}$/.test(queryCode) ? queryCode : null
+}
 
 function App() {
   const [status, setStatus] = useState('loading')
   const [setupComplete, setSetupComplete] = useState(true)
   const [user, setUser] = useState(null)
+  const [pairCode, setPairCode] = useState(getPairCodeFromLocation)
 
   useEffect(() => {
     async function bootstrap() {
@@ -59,6 +68,11 @@ function App() {
     setStatus(setupComplete ? 'login' : 'setup')
   }
 
+  function clearPairCode() {
+    window.history.replaceState({}, '', '/')
+    setPairCode(null)
+  }
+
   if (status === 'loading') return null
   if (status === 'error') {
     return (
@@ -70,6 +84,7 @@ function App() {
   }
   if (status === 'setup') return <AuthForm mode="setup" onSubmit={handleSetup} />
   if (status === 'login') return <AuthForm mode="login" onSubmit={handleLogin} />
+  if (pairCode) return <ClaimDevice code={pairCode} onDone={clearPairCode} />
   return <Dashboard user={user} onLogout={handleLogout} />
 }
 

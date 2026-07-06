@@ -36,6 +36,7 @@ function pairingPayload(req, code) {
   return {
     hubUrl,
     code,
+    claimUrl: `${hubUrl}/pair/${code}`,
     deepLink: `meridian://pair?hub=${encodeURIComponent(hubUrl)}&code=${encodeURIComponent(code)}`,
   };
 }

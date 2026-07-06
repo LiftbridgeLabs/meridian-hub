@@ -15,6 +15,22 @@ function parseIds(value) {
   }
 }
 
+function resolveProfile(device) {
+  return device.assigned_profile_id
+    ? db.prepare('SELECT * FROM profiles WHERE id = ? AND household_id = ?').get(
+        device.assigned_profile_id,
+        device.household_id
+      )
+    : db
+        .prepare(
+          `SELECT * FROM profiles
+           WHERE household_id = ?
+           ORDER BY is_default DESC, created_at ASC
+           LIMIT 1`
+        )
+        .get(device.household_id);
+}
+
 function playlistForDevice(device, profile) {
   if (profile?.assigned_playlist_id) {
     return db
@@ -35,6 +51,7 @@ function playlistForDevice(device, profile) {
 
 router.get('/config', (req, res) => {
   const appVersion = req.get('x-app-version') || req.query.app_version || req.query.appVersion || null;
+  const hadPushPending = !!req.device.push_pending;
 
   db.prepare(
     `UPDATE devices
@@ -45,19 +62,7 @@ router.get('/config', (req, res) => {
   const household = db
     .prepare('SELECT id, name, timezone, language, theme FROM households WHERE id = ?')
     .get(req.device.household_id);
-  const profile = req.device.assigned_profile_id
-    ? db.prepare('SELECT * FROM profiles WHERE id = ? AND household_id = ?').get(
-        req.device.assigned_profile_id,
-        req.device.household_id
-      )
-    : db
-        .prepare(
-          `SELECT * FROM profiles
-           WHERE household_id = ?
-           ORDER BY is_default DESC, created_at ASC
-           LIMIT 1`
-        )
-        .get(req.device.household_id);
+  const profile = resolveProfile(req.device);
   const playlist = playlistForDevice(req.device, profile);
   const allowedCategoryIds = parseIds(profile?.allowed_categories);
   const categoryFilter =
@@ -95,7 +100,7 @@ router.get('/config', (req, res) => {
       platform: req.device.platform,
       assignedProfileId: req.device.assigned_profile_id,
       assignedPlaylistId: req.device.assigned_playlist_id,
-      pushPending: false,
+      pushPending: hadPushPending,
     },
     household,
     profile: profile
@@ -124,6 +129,27 @@ router.get('/status', (req, res) => {
     lastSeen: req.device.last_seen,
     appVersion: req.device.app_version,
   });
+});
+
+router.post('/heartbeat', (req, res) => {
+  const appVersion = req.body.app_version || req.body.appVersion || null;
+  db.prepare(
+    `UPDATE devices SET last_seen = datetime('now'), app_version = COALESCE(?, app_version) WHERE id = ?`
+  ).run(appVersion, req.device.id);
+  res.json({ ok: true });
+});
+
+router.post('/favorites', (req, res) => {
+  const favorites = Array.isArray(req.body.favorites)
+    ? req.body.favorites.map((id) => Number(id)).filter(Boolean)
+    : null;
+  if (!favorites) return res.status(400).json({ error: 'favorites must be an array of channel ids' });
+
+  const profile = resolveProfile(req.device);
+  if (!profile) return res.status(404).json({ error: 'No profile assigned to this device' });
+
+  db.prepare('UPDATE profiles SET favorites = ? WHERE id = ?').run(JSON.stringify(favorites), profile.id);
+  res.json({ ok: true, favorites });
 });
 
 module.exports = router;

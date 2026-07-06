@@ -52,7 +52,8 @@
   color: var(--text-muted);
 }
 
-.auth-card input {
+.auth-card input,
+.auth-card select {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -61,7 +62,8 @@
   font-size: 1rem;
 }
 
-.auth-card input:focus {
+.auth-card input:focus,
+.auth-card select:focus {
   outline: none;
   border-color: var(--accent);
 }
