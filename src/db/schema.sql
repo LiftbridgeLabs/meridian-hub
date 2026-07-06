@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS hub_settings (
   setup_complete INTEGER NOT NULL DEFAULT 0,
   license_key TEXT,
   max_households INTEGER NOT NULL DEFAULT 5,
+  jwt_secret TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

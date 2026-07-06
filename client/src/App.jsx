@@ -1,24 +1,76 @@
 import { useEffect, useState } from 'react'
+import { api, getToken, setToken, clearToken } from './api'
+import AuthForm from './components/AuthForm'
+import Dashboard from './components/Dashboard'
 import './App.css'
 
 function App() {
-  const [status, setStatus] = useState('checking...')
+  const [status, setStatus] = useState('loading')
+  const [setupComplete, setSetupComplete] = useState(true)
+  const [user, setUser] = useState(null)
 
   useEffect(() => {
-    fetch('/api/health')
-      .then((res) => res.json())
-      .then((data) => setStatus(data.status))
-      .catch(() => setStatus('unreachable'))
+    async function bootstrap() {
+      const token = getToken()
+      if (token) {
+        try {
+          const me = await api('/auth/me')
+          setUser(me)
+          setStatus('authenticated')
+          return
+        } catch {
+          clearToken()
+        }
+      }
+
+      const { setupComplete } = await api('/auth/setup-status')
+      setSetupComplete(setupComplete)
+      setStatus(setupComplete ? 'login' : 'setup')
+    }
+
+    bootstrap().catch(() => setStatus('error'))
   }, [])
 
-  return (
-    <div className="app-shell">
-      <h1>Meridian Hub</h1>
-      <p>
-        Backend status: <strong>{status}</strong>
-      </p>
-    </div>
-  )
+  async function handleSetup({ username, password }) {
+    const { token } = await api('/auth/setup', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    })
+    setToken(token)
+    const me = await api('/auth/me')
+    setUser(me)
+    setStatus('authenticated')
+  }
+
+  async function handleLogin({ username, password }) {
+    const { token } = await api('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    })
+    setToken(token)
+    const me = await api('/auth/me')
+    setUser(me)
+    setStatus('authenticated')
+  }
+
+  function handleLogout() {
+    clearToken()
+    setUser(null)
+    setStatus(setupComplete ? 'login' : 'setup')
+  }
+
+  if (status === 'loading') return null
+  if (status === 'error') {
+    return (
+      <div className="app-shell">
+        <h1>Meridian Hub</h1>
+        <p>Could not reach the backend. Check the container logs.</p>
+      </div>
+    )
+  }
+  if (status === 'setup') return <AuthForm mode="setup" onSubmit={handleSetup} />
+  if (status === 'login') return <AuthForm mode="login" onSubmit={handleLogin} />
+  return <Dashboard user={user} onLogout={handleLogout} />
 }
 
 export default App

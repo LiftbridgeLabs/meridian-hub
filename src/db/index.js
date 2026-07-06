@@ -13,4 +13,9 @@ db.pragma('foreign_keys = ON');
 const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
 db.exec(schema);
 
+const hubSettingsColumns = db.prepare('PRAGMA table_info(hub_settings)').all().map((c) => c.name);
+if (!hubSettingsColumns.includes('jwt_secret')) {
+  db.exec('ALTER TABLE hub_settings ADD COLUMN jwt_secret TEXT');
+}
+
 module.exports = db;
