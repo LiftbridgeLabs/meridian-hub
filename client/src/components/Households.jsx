@@ -3,7 +3,7 @@ import { api } from '../api'
 
 const TIMEZONES = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : ['UTC']
 
-function Households() {
+function Households({ onManage }) {
   const [households, setHouseholds] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -148,7 +148,11 @@ function Households() {
                 </tr>
               ) : (
                 <tr key={h.id}>
-                  <td>{h.name}</td>
+                  <td>
+                    <button type="button" className="link-button" onClick={() => onManage(h)}>
+                      {h.name}
+                    </button>
+                  </td>
                   <td>{h.timezone}</td>
                   <td>{h.device_count}</td>
                   <td>

@@ -1,6 +1,10 @@
+import { useState } from 'react'
 import Households from './Households'
+import HouseholdDetail from './HouseholdDetail'
 
 function Dashboard({ user, onLogout }) {
+  const [selectedHousehold, setSelectedHousehold] = useState(null)
+
   return (
     <div className="dashboard">
       <header className="dashboard-header">
@@ -13,7 +17,11 @@ function Dashboard({ user, onLogout }) {
         </div>
       </header>
       <main className="dashboard-main">
-        <Households />
+        {selectedHousehold ? (
+          <HouseholdDetail household={selectedHousehold} onBack={() => setSelectedHousehold(null)} />
+        ) : (
+          <Households onManage={setSelectedHousehold} />
+        )}
       </main>
     </div>
   )
