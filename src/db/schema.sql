@@ -39,6 +39,33 @@ CREATE TABLE IF NOT EXISTS playlists (
   username TEXT,
   password TEXT,
   url TEXT,
+  sync_status TEXT NOT NULL DEFAULT 'never',
+  sync_error TEXT,
+  last_synced_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS playlist_categories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+  remote_id TEXT,
+  name TEXT NOT NULL,
+  item_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (playlist_id, remote_id)
+);
+
+CREATE TABLE IF NOT EXISTS playlist_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+  category_id INTEGER REFERENCES playlist_categories(id) ON DELETE SET NULL,
+  remote_id TEXT,
+  name TEXT NOT NULL,
+  stream_url TEXT NOT NULL,
+  logo_url TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  tvg_id TEXT,
+  group_title TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -93,6 +120,9 @@ CREATE TABLE IF NOT EXISTS pairing_requests (
 );
 
 CREATE INDEX IF NOT EXISTS idx_playlists_household ON playlists(household_id);
+CREATE INDEX IF NOT EXISTS idx_playlist_categories_playlist ON playlist_categories(playlist_id);
+CREATE INDEX IF NOT EXISTS idx_playlist_channels_playlist ON playlist_channels(playlist_id);
+CREATE INDEX IF NOT EXISTS idx_playlist_channels_category ON playlist_channels(category_id);
 CREATE INDEX IF NOT EXISTS idx_epg_sources_household ON epg_sources(household_id);
 CREATE INDEX IF NOT EXISTS idx_profiles_household ON profiles(household_id);
 CREATE INDEX IF NOT EXISTS idx_devices_household ON devices(household_id);

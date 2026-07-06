@@ -442,12 +442,54 @@
   cursor: default;
 }
 
+.channel-browser {
+  margin-top: 24px;
+}
+
+.channel-browser-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.channel-browser-header h4 {
+  color: var(--accent);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.channel-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(160px, 1fr) auto;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.channel-filters input,
+.channel-filters select {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.95rem;
+  padding: 8px 10px;
+}
+
+.channel-filters input:focus,
+.channel-filters select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 @media (max-width: 680px) {
   .dashboard-header,
   .household-detail-header,
   .playlist-form-row,
   .household-form,
-  .pairing-form {
+  .pairing-form,
+  .channel-filters {
     align-items: stretch;
     display: flex;
     flex-direction: column;

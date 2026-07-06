@@ -24,6 +24,7 @@ function DashboardHome() {
     { label: 'Households', value: `${stats.enabledHouseholds}/${stats.max_households}` },
     { label: 'Devices', value: stats.devices },
     { label: 'Playlists', value: stats.playlists },
+    { label: 'Channels', value: stats.channels },
     { label: 'Seen today', value: stats.recentlySeenDevices },
     { label: 'Pending pairings', value: stats.pendingPairings },
   ]

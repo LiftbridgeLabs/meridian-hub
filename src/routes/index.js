@@ -34,6 +34,8 @@ router.get('/hub/stats', requireAuth, (req, res) => {
     .get();
   const { devices } = db.prepare('SELECT COUNT(*) AS devices FROM devices').get();
   const { playlists } = db.prepare('SELECT COUNT(*) AS playlists FROM playlists').get();
+  const { channels } = db.prepare('SELECT COUNT(*) AS channels FROM playlist_channels').get();
+  const { categories } = db.prepare('SELECT COUNT(*) AS categories FROM playlist_categories').get();
   const { pendingPairings } = db
     .prepare(
       `SELECT COUNT(*) AS pendingPairings
@@ -57,6 +59,8 @@ router.get('/hub/stats', requireAuth, (req, res) => {
     enabledHouseholds,
     devices,
     playlists,
+    channels,
+    categories,
     pendingPairings,
     recentlySeenDevices,
   });

@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { testPlaylist } = require('../lib/playlistTest');
+const { syncPlaylist } = require('../lib/playlistSync');
 
 const router = express.Router({ mergeParams: true });
 
@@ -29,7 +30,18 @@ function validatePlaylist(body, { partial = false, skipName = false } = {}) {
 router.get('/', (req, res) => {
   if (!getHousehold(req.params.id)) return res.status(404).json({ error: 'Household not found' });
   const playlists = db
-    .prepare('SELECT * FROM playlists WHERE household_id = ? ORDER BY created_at DESC')
+    .prepare(
+      `SELECT
+        p.*,
+        COUNT(DISTINCT c.id) AS category_count,
+        COUNT(DISTINCT ch.id) AS channel_count
+       FROM playlists p
+       LEFT JOIN playlist_categories c ON c.playlist_id = p.id
+       LEFT JOIN playlist_channels ch ON ch.playlist_id = p.id
+       WHERE p.household_id = ?
+       GROUP BY p.id
+       ORDER BY p.created_at DESC`
+    )
     .all(req.params.id);
   res.json(playlists);
 });
@@ -62,6 +74,79 @@ router.post('/test', async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
+});
+
+router.post('/:playlistId/sync', async (req, res) => {
+  const playlist = db
+    .prepare('SELECT * FROM playlists WHERE id = ? AND household_id = ?')
+    .get(req.params.playlistId, req.params.id);
+  if (!playlist) return res.status(404).json({ error: 'Playlist not found' });
+
+  try {
+    const result = await syncPlaylist(db, playlist);
+    res.json({
+      ...result,
+      playlist: db.prepare('SELECT * FROM playlists WHERE id = ?').get(req.params.playlistId),
+    });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.get('/:playlistId/categories', (req, res) => {
+  const playlist = db
+    .prepare('SELECT id FROM playlists WHERE id = ? AND household_id = ?')
+    .get(req.params.playlistId, req.params.id);
+  if (!playlist) return res.status(404).json({ error: 'Playlist not found' });
+
+  const categories = db
+    .prepare('SELECT * FROM playlist_categories WHERE playlist_id = ? ORDER BY name COLLATE NOCASE ASC')
+    .all(req.params.playlistId);
+  res.json(categories);
+});
+
+router.get('/:playlistId/channels', (req, res) => {
+  const playlist = db
+    .prepare('SELECT id FROM playlists WHERE id = ? AND household_id = ?')
+    .get(req.params.playlistId, req.params.id);
+  if (!playlist) return res.status(404).json({ error: 'Playlist not found' });
+
+  const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+  const categoryId = req.query.category_id || req.query.categoryId || null;
+  const search = String(req.query.search || '').trim();
+  const conditions = ['ch.playlist_id = ?'];
+  const params = [req.params.playlistId];
+
+  if (categoryId) {
+    conditions.push('ch.category_id = ?');
+    params.push(categoryId);
+  }
+  if (search) {
+    conditions.push('ch.name LIKE ?');
+    params.push(`%${search}%`);
+  }
+
+  const channels = db
+    .prepare(
+      `SELECT
+        ch.id,
+        ch.playlist_id,
+        ch.category_id,
+        ch.remote_id,
+        ch.name,
+        ch.logo_url,
+        ch.sort_order,
+        ch.tvg_id,
+        ch.group_title,
+        c.name AS category_name
+       FROM playlist_channels ch
+       LEFT JOIN playlist_categories c ON c.id = ch.category_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY ch.sort_order ASC, ch.name COLLATE NOCASE ASC
+       LIMIT ?`
+    )
+    .all(...params, limit);
+  res.json(channels);
 });
 
 router.put('/:playlistId', (req, res) => {

@@ -18,4 +18,15 @@ if (!hubSettingsColumns.includes('jwt_secret')) {
   db.exec('ALTER TABLE hub_settings ADD COLUMN jwt_secret TEXT');
 }
 
+const playlistColumns = db.prepare('PRAGMA table_info(playlists)').all().map((c) => c.name);
+if (!playlistColumns.includes('sync_status')) {
+  db.exec("ALTER TABLE playlists ADD COLUMN sync_status TEXT NOT NULL DEFAULT 'never'");
+}
+if (!playlistColumns.includes('sync_error')) {
+  db.exec('ALTER TABLE playlists ADD COLUMN sync_error TEXT');
+}
+if (!playlistColumns.includes('last_synced_at')) {
+  db.exec('ALTER TABLE playlists ADD COLUMN last_synced_at TEXT');
+}
+
 module.exports = db;

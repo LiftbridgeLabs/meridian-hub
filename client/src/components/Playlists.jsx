@@ -23,6 +23,13 @@ function Playlists({ householdId }) {
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState(emptyForm)
   const [testResults, setTestResults] = useState({})
+  const [syncResults, setSyncResults] = useState({})
+  const [selectedPlaylist, setSelectedPlaylist] = useState(null)
+  const [categories, setCategories] = useState([])
+  const [channels, setChannels] = useState([])
+  const [channelLoading, setChannelLoading] = useState(false)
+  const [channelSearch, setChannelSearch] = useState('')
+  const [categoryId, setCategoryId] = useState('')
 
   async function load() {
     setLoading(true)
@@ -51,6 +58,57 @@ function Playlists({ householdId }) {
     } catch (err) {
       setTestResults((prev) => ({ ...prev, [key]: { loading: false, ok: false, message: err.message } }))
     }
+  }
+
+  async function syncPlaylist(playlist) {
+    setSyncResults((prev) => ({ ...prev, [playlist.id]: { loading: true } }))
+    setError('')
+    try {
+      const result = await api(`/households/${householdId}/playlists/${playlist.id}/sync`, { method: 'POST' })
+      setSyncResults((prev) => ({
+        ...prev,
+        [playlist.id]: {
+          loading: false,
+          ok: true,
+          message: `Synced ${result.channelCount} channel${result.channelCount === 1 ? '' : 's'}`,
+        },
+      }))
+      await load()
+      if (selectedPlaylist?.id === playlist.id) {
+        await loadChannels(playlist.id)
+      }
+    } catch (err) {
+      setSyncResults((prev) => ({ ...prev, [playlist.id]: { loading: false, ok: false, message: err.message } }))
+    }
+  }
+
+  async function loadChannels(playlistId, options = {}) {
+    setChannelLoading(true)
+    try {
+      const nextCategoryId = options.categoryId ?? categoryId
+      const nextSearch = options.search ?? channelSearch
+      const params = new URLSearchParams({ limit: '100' })
+      if (nextCategoryId) params.set('category_id', nextCategoryId)
+      if (nextSearch.trim()) params.set('search', nextSearch.trim())
+      const [categoryData, channelData] = await Promise.all([
+        api(`/households/${householdId}/playlists/${playlistId}/categories`),
+        api(`/households/${householdId}/playlists/${playlistId}/channels?${params.toString()}`),
+      ])
+      setCategories(categoryData)
+      setChannels(channelData)
+      setError('')
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setChannelLoading(false)
+    }
+  }
+
+  async function selectPlaylist(playlist) {
+    setSelectedPlaylist(playlist)
+    setCategoryId('')
+    setChannelSearch('')
+    await loadChannels(playlist.id, { categoryId: '', search: '' })
   }
 
   async function handleCreate(e) {
@@ -112,10 +170,27 @@ function Playlists({ householdId }) {
     return p.type === 'xtream' ? `${p.server_url} (${p.username})` : p.url
   }
 
+  function syncSummary(p) {
+    if (p.sync_status === 'synced') {
+      const when = p.last_synced_at ? ` | ${new Date(`${p.last_synced_at}Z`).toLocaleString()}` : ''
+      return `${p.channel_count || 0} channels | ${p.category_count || 0} categories${when}`
+    }
+    if (p.sync_status === 'syncing') return 'Sync in progress'
+    if (p.sync_status === 'error') return p.sync_error || 'Last sync failed'
+    return 'Not synced yet'
+  }
+
   function TestResult({ resultKey }) {
     const result = testResults[resultKey]
     if (!result) return null
     if (result.loading) return <p className="test-result">Testing...</p>
+    return <p className={`test-result ${result.ok ? 'ok' : 'fail'}`}>{result.ok ? result.message : `✗ ${result.message}`}</p>
+  }
+
+  function SyncResult({ playlistId }) {
+    const result = syncResults[playlistId]
+    if (!result) return null
+    if (result.loading) return <p className="test-result">Syncing...</p>
     return <p className={`test-result ${result.ok ? 'ok' : 'fail'}`}>{result.ok ? result.message : `✗ ${result.message}`}</p>
   }
 
@@ -189,6 +264,7 @@ function Playlists({ householdId }) {
               <th>Name</th>
               <th>Type</th>
               <th>Source</th>
+              <th>Imported</th>
               <th></th>
             </tr>
           </thead>
@@ -196,7 +272,7 @@ function Playlists({ householdId }) {
             {playlists.map((p) =>
               editingId === p.id ? (
                 <tr key={p.id}>
-                  <td colSpan={4}>
+                  <td colSpan={5}>
                     <div className="playlist-form-row">
                       <input
                         type="text"
@@ -262,10 +338,22 @@ function Playlists({ householdId }) {
                     <td>{p.name}</td>
                     <td>{p.type === 'xtream' ? 'Xtream' : 'M3U'}</td>
                     <td>{sourceSummary(p)}</td>
+                    <td>{syncSummary(p)}</td>
                     <td>
                       <div className="row-actions">
                         <button type="button" className="btn-small" onClick={() => runTest(p.id, p)}>
                           Test
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-small primary"
+                          onClick={() => syncPlaylist(p)}
+                          disabled={syncResults[p.id]?.loading}
+                        >
+                          {syncResults[p.id]?.loading ? 'Syncing...' : 'Sync'}
+                        </button>
+                        <button type="button" className="btn-small" onClick={() => selectPlaylist(p)}>
+                          Browse
                         </button>
                         <button type="button" className="btn-small" onClick={() => startEdit(p)}>
                           Edit
@@ -278,8 +366,15 @@ function Playlists({ householdId }) {
                   </tr>
                   {testResults[p.id] && (
                     <tr key={`${p.id}-result`}>
-                      <td colSpan={4}>
+                      <td colSpan={5}>
                         <TestResult resultKey={p.id} />
+                      </td>
+                    </tr>
+                  )}
+                  {syncResults[p.id] && (
+                    <tr key={`${p.id}-sync-result`}>
+                      <td colSpan={5}>
+                        <SyncResult playlistId={p.id} />
                       </td>
                     </tr>
                   )}
@@ -288,6 +383,66 @@ function Playlists({ householdId }) {
             )}
           </tbody>
         </table>
+      )}
+
+      {selectedPlaylist && (
+        <section className="channel-browser">
+          <div className="channel-browser-header">
+            <h4>{selectedPlaylist.name} channels</h4>
+            <button type="button" className="btn-small" onClick={() => setSelectedPlaylist(null)}>
+              Close
+            </button>
+          </div>
+          <div className="channel-filters">
+            <select
+              value={categoryId}
+              onChange={(e) => {
+                setCategoryId(e.target.value)
+                loadChannels(selectedPlaylist.id, { categoryId: e.target.value })
+              }}
+            >
+              <option value="">All categories</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name} ({category.item_count})
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              placeholder="Search channels"
+              value={channelSearch}
+              onChange={(e) => setChannelSearch(e.target.value)}
+            />
+            <button type="button" className="btn-small" onClick={() => loadChannels(selectedPlaylist.id)}>
+              Search
+            </button>
+          </div>
+          {channelLoading ? (
+            <p>Loading...</p>
+          ) : channels.length === 0 ? (
+            <p className="households-empty">No imported channels found. Sync this playlist first.</p>
+          ) : (
+            <table className="households-table">
+              <thead>
+                <tr>
+                  <th>Channel</th>
+                  <th>Category</th>
+                  <th>EPG ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                {channels.map((channel) => (
+                  <tr key={channel.id}>
+                    <td>{channel.name}</td>
+                    <td>{channel.category_name || channel.group_title || 'Uncategorized'}</td>
+                    <td>{channel.tvg_id || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
       )}
     </div>
   )
