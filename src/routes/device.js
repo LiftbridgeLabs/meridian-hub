@@ -48,17 +48,20 @@ router.get('/config', (req, res) => {
     ? db
         .prepare(
           `SELECT
-            id,
-            remote_id,
-            COALESCE(NULLIF(custom_name, ''), name) AS name,
-            stream_url,
-            logo_url,
-            tvg_id,
-            group_title,
-            sort_order
-           FROM playlist_channels
-           WHERE playlist_id = ? AND enabled = 1
-           ORDER BY sort_order ASC, name COLLATE NOCASE ASC`
+            ch.id,
+            ch.remote_id,
+            COALESCE(NULLIF(ch.custom_name, ''), ch.name) AS name,
+            ch.stream_url,
+            ch.logo_url,
+            ch.tvg_id,
+            COALESCE(NULLIF(c.custom_name, ''), c.name, ch.group_title) AS group_title,
+            ch.sort_order
+           FROM playlist_channels ch
+           LEFT JOIN playlist_categories c ON c.id = ch.category_id
+           WHERE ch.playlist_id = ?
+             AND ch.enabled = 1
+             AND (c.enabled IS NULL OR c.enabled = 1)
+           ORDER BY ch.sort_order ASC, name COLLATE NOCASE ASC`
         )
         .all(playlist.id)
     : [];

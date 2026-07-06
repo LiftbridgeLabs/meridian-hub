@@ -611,6 +611,46 @@
   border-color: var(--accent);
 }
 
+.category-create-form,
+.category-editor-row {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.category-create-form {
+  grid-template-columns: minmax(180px, 1fr) auto;
+}
+
+.category-editor {
+  background: rgba(10, 10, 10, 0.35);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.category-editor-row {
+  grid-template-columns: minmax(180px, 260px) 1fr;
+  margin-bottom: 0;
+}
+
+.category-create-form input,
+.category-editor input {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.95rem;
+  padding: 8px 10px;
+}
+
+.category-create-form input:focus,
+.category-editor input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .channel-bulk-actions {
   margin-top: 12px;
 }
@@ -625,7 +665,9 @@
   .playlist-form-row,
   .household-form,
   .pairing-form,
-  .channel-filters {
+  .channel-filters,
+  .category-create-form,
+  .category-editor-row {
     align-items: stretch;
     display: flex;
     flex-direction: column;

@@ -32,6 +32,8 @@ function Playlists({ householdId }) {
   const [categoryId, setCategoryId] = useState('')
   const [visibility, setVisibility] = useState('all')
   const [channelEdits, setChannelEdits] = useState({})
+  const [categoryEdits, setCategoryEdits] = useState({})
+  const [newCategoryName, setNewCategoryName] = useState('')
 
   async function load() {
     setLoading(true)
@@ -103,6 +105,9 @@ function Playlists({ householdId }) {
       setChannelEdits(
         Object.fromEntries(channelData.map((channel) => [channel.id, channel.custom_name || channel.name]))
       )
+      setCategoryEdits(
+        Object.fromEntries(categoryData.map((category) => [category.id, category.custom_name || category.name]))
+      )
       setError('')
     } catch (err) {
       setError(err.message)
@@ -142,6 +147,69 @@ function Playlists({ householdId }) {
         body: JSON.stringify({ enabled, applyToChannels: true }),
       })
       await loadChannels(selectedPlaylist.id)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function createCategory(e) {
+    e.preventDefault()
+    if (!selectedPlaylist || !newCategoryName.trim()) return
+    setError('')
+    try {
+      await api(`/households/${householdId}/playlists/${selectedPlaylist.id}/categories`, {
+        method: 'POST',
+        body: JSON.stringify({ name: newCategoryName }),
+      })
+      setNewCategoryName('')
+      await loadChannels(selectedPlaylist.id)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function saveCategoryName(category) {
+    if (!selectedPlaylist) return
+    const value = categoryEdits[category.id] ?? category.display_name ?? category.name
+    const body = category.is_custom ? { name: value } : { custom_name: value }
+    setError('')
+    try {
+      await api(`/households/${householdId}/playlists/${selectedPlaylist.id}/categories/${category.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      })
+      await loadChannels(selectedPlaylist.id)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function resetCategoryName(category) {
+    if (!selectedPlaylist || category.is_custom) return
+    setError('')
+    try {
+      await api(`/households/${householdId}/playlists/${selectedPlaylist.id}/categories/${category.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ custom_name: '' }),
+      })
+      await loadChannels(selectedPlaylist.id)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function deleteCategory(category) {
+    if (!selectedPlaylist || !category.is_custom) return
+    if (!confirm(`Delete custom category "${category.display_name || category.name}"? Channels in it will become uncategorized.`)) {
+      return
+    }
+    setError('')
+    try {
+      await api(`/households/${householdId}/playlists/${selectedPlaylist.id}/categories/${category.id}`, {
+        method: 'DELETE',
+      })
+      setCategoryId('')
+      await loadChannels(selectedPlaylist.id, { categoryId: '' })
     } catch (err) {
       setError(err.message)
     }
@@ -447,7 +515,7 @@ function Playlists({ householdId }) {
               <option value="">All categories</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
-                  {category.name} ({category.item_count})
+                  {category.display_name || category.name} ({category.item_count})
                 </option>
               ))}
             </select>
@@ -472,6 +540,53 @@ function Playlists({ householdId }) {
               Search
             </button>
           </div>
+          <form className="category-create-form" onSubmit={createCategory}>
+            <input
+              type="text"
+              placeholder="New custom category"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+            />
+            <button type="submit" className="btn-small primary">
+              Add category
+            </button>
+          </form>
+          {categoryId && (
+            <div className="category-editor">
+              {categories
+                .filter((category) => String(category.id) === String(categoryId))
+                .map((category) => (
+                  <div className="category-editor-row" key={category.id}>
+                    <input
+                      type="text"
+                      value={categoryEdits[category.id] ?? category.display_name ?? category.name}
+                      onChange={(e) => setCategoryEdits({ ...categoryEdits, [category.id]: e.target.value })}
+                    />
+                    <div className="row-actions">
+                      <button type="button" className="btn-small primary" onClick={() => saveCategoryName(category)}>
+                        Save group
+                      </button>
+                      {!category.is_custom && (
+                        <button type="button" className="btn-small" onClick={() => resetCategoryName(category)}>
+                          Reset name
+                        </button>
+                      )}
+                      <button type="button" className="btn-small primary" onClick={() => updateCategory(category, true)}>
+                        Show group
+                      </button>
+                      <button type="button" className="btn-small danger" onClick={() => updateCategory(category, false)}>
+                        Hide group
+                      </button>
+                      {category.is_custom ? (
+                        <button type="button" className="btn-small danger" onClick={() => deleteCategory(category)}>
+                          Delete group
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
           {channelLoading ? (
             <p>Loading...</p>
           ) : channels.length === 0 ? (
@@ -506,7 +621,21 @@ function Playlists({ householdId }) {
                         onChange={(e) => setChannelEdits({ ...channelEdits, [channel.id]: e.target.value })}
                       />
                     </td>
-                    <td>{channel.category_name || channel.group_title || 'Uncategorized'}</td>
+                    <td>
+                      <select
+                        value={channel.category_id || ''}
+                        onChange={(e) =>
+                          updateChannel(channel, { category_id: e.target.value ? Number(e.target.value) : null })
+                        }
+                      >
+                        <option value="">Uncategorized</option>
+                        {categories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.display_name || category.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td>{channel.tvg_id || '-'}</td>
                     <td>
                       <div className="row-actions">
@@ -530,22 +659,6 @@ function Playlists({ householdId }) {
                 ))}
               </tbody>
             </table>
-          )}
-          {categoryId && (
-            <div className="channel-bulk-actions">
-              {categories
-                .filter((category) => String(category.id) === String(categoryId))
-                .map((category) => (
-                  <div className="row-actions" key={category.id}>
-                    <button type="button" className="btn-small primary" onClick={() => updateCategory(category, true)}>
-                      Show category
-                    </button>
-                    <button type="button" className="btn-small danger" onClick={() => updateCategory(category, false)}>
-                      Hide category
-                    </button>
-                  </div>
-                ))}
-            </div>
           )}
         </section>
       )}

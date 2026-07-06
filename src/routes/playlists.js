@@ -27,6 +27,16 @@ function validatePlaylist(body, { partial = false, skipName = false } = {}) {
   return null;
 }
 
+function refreshCategoryCounts(playlistId) {
+  db.prepare(
+    `UPDATE playlist_categories
+     SET item_count = (
+       SELECT COUNT(*) FROM playlist_channels WHERE playlist_channels.category_id = playlist_categories.id
+     )
+     WHERE playlist_id = ?`
+  ).run(playlistId);
+}
+
 router.get('/', (req, res) => {
   if (!getHousehold(req.params.id)) return res.status(404).json({ error: 'Household not found' });
   const playlists = db
@@ -100,9 +110,43 @@ router.get('/:playlistId/categories', (req, res) => {
   if (!playlist) return res.status(404).json({ error: 'Playlist not found' });
 
   const categories = db
-    .prepare('SELECT * FROM playlist_categories WHERE playlist_id = ? ORDER BY name COLLATE NOCASE ASC')
+    .prepare(
+      `SELECT
+        *,
+        COALESCE(NULLIF(custom_name, ''), name) AS display_name
+       FROM playlist_categories
+       WHERE playlist_id = ?
+       ORDER BY is_custom DESC, display_name COLLATE NOCASE ASC`
+    )
     .all(req.params.playlistId);
   res.json(categories);
+});
+
+router.post('/:playlistId/categories', (req, res) => {
+  const playlist = db
+    .prepare('SELECT id FROM playlists WHERE id = ? AND household_id = ?')
+    .get(req.params.playlistId, req.params.id);
+  if (!playlist) return res.status(404).json({ error: 'Playlist not found' });
+
+  const name = String(req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Category name is required' });
+
+  const result = db
+    .prepare(
+      `INSERT INTO playlist_categories (playlist_id, remote_id, name, custom_name, enabled, is_custom, item_count)
+       VALUES (?, NULL, ?, NULL, 1, 1, 0)`
+    )
+    .run(req.params.playlistId, name);
+
+  res.status(201).json(
+    db
+      .prepare(
+        `SELECT *, COALESCE(NULLIF(custom_name, ''), name) AS display_name
+         FROM playlist_categories
+         WHERE id = ?`
+      )
+      .get(result.lastInsertRowid)
+  );
 });
 
 router.patch('/:playlistId/categories/:categoryId', (req, res) => {
@@ -118,6 +162,15 @@ router.patch('/:playlistId/categories/:categoryId', (req, res) => {
 
   const updates = {};
   if ('enabled' in req.body) updates.enabled = req.body.enabled ? 1 : 0;
+  if ('custom_name' in req.body || 'customName' in req.body) {
+    const value = String(req.body.custom_name ?? req.body.customName ?? '').trim();
+    updates.custom_name = value || null;
+  }
+  if ('name' in req.body && category.is_custom) {
+    const value = String(req.body.name || '').trim();
+    if (!value) return res.status(400).json({ error: 'Category name is required' });
+    updates.name = value;
+  }
 
   const fields = Object.keys(updates);
   if (fields.length > 0) {
@@ -135,7 +188,36 @@ router.patch('/:playlistId/categories/:categoryId', (req, res) => {
     );
   }
 
-  res.json(db.prepare('SELECT * FROM playlist_categories WHERE id = ?').get(req.params.categoryId));
+  res.json(
+    db
+      .prepare(
+        `SELECT *, COALESCE(NULLIF(custom_name, ''), name) AS display_name
+         FROM playlist_categories
+         WHERE id = ?`
+      )
+      .get(req.params.categoryId)
+  );
+});
+
+router.delete('/:playlistId/categories/:categoryId', (req, res) => {
+  const category = db
+    .prepare(
+      `SELECT c.*
+       FROM playlist_categories c
+       JOIN playlists p ON p.id = c.playlist_id
+       WHERE c.id = ? AND c.playlist_id = ? AND p.household_id = ?`
+    )
+    .get(req.params.categoryId, req.params.playlistId, req.params.id);
+  if (!category) return res.status(404).json({ error: 'Category not found' });
+  if (!category.is_custom) return res.status(400).json({ error: 'Only custom categories can be deleted' });
+
+  const removeCategory = db.transaction(() => {
+    db.prepare('UPDATE playlist_channels SET category_id = NULL WHERE category_id = ?').run(req.params.categoryId);
+    db.prepare('DELETE FROM playlist_categories WHERE id = ?').run(req.params.categoryId);
+    refreshCategoryCounts(req.params.playlistId);
+  });
+  removeCategory();
+  res.status(204).send();
 });
 
 router.get('/:playlistId/channels', (req, res) => {
@@ -181,7 +263,9 @@ router.get('/:playlistId/channels', (req, res) => {
         ch.sort_order,
         ch.tvg_id,
         ch.group_title,
-        c.name AS category_name
+        c.name AS category_name,
+        c.custom_name AS category_custom_name,
+        COALESCE(NULLIF(c.custom_name, ''), c.name) AS category_display_name
        FROM playlist_channels ch
        LEFT JOIN playlist_categories c ON c.id = ch.category_id
        WHERE ${conditions.join(' AND ')}
@@ -209,6 +293,18 @@ router.patch('/:playlistId/channels/:channelId', (req, res) => {
     const value = String(req.body.custom_name ?? req.body.customName ?? '').trim();
     updates.custom_name = value || null;
   }
+  if ('category_id' in req.body || 'categoryId' in req.body) {
+    const categoryId = req.body.category_id ?? req.body.categoryId;
+    if (categoryId === null || categoryId === '') {
+      updates.category_id = null;
+    } else {
+      const category = db
+        .prepare('SELECT id FROM playlist_categories WHERE id = ? AND playlist_id = ?')
+        .get(categoryId, req.params.playlistId);
+      if (!category) return res.status(400).json({ error: 'Category does not belong to this playlist' });
+      updates.category_id = categoryId;
+    }
+  }
 
   const fields = Object.keys(updates);
   if (fields.length > 0) {
@@ -217,6 +313,7 @@ router.patch('/:playlistId/channels/:channelId', (req, res) => {
       ...fields.map((field) => updates[field]),
       req.params.channelId
     );
+    if ('category_id' in updates) refreshCategoryCounts(req.params.playlistId);
   }
 
   res.json(
@@ -225,7 +322,9 @@ router.patch('/:playlistId/channels/:channelId', (req, res) => {
         `SELECT
           ch.*,
           COALESCE(NULLIF(ch.custom_name, ''), ch.name) AS display_name,
-          c.name AS category_name
+          c.name AS category_name,
+          c.custom_name AS category_custom_name,
+          COALESCE(NULLIF(c.custom_name, ''), c.name) AS category_display_name
          FROM playlist_channels ch
          LEFT JOIN playlist_categories c ON c.id = ch.category_id
          WHERE ch.id = ?`

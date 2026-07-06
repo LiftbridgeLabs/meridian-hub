@@ -39,8 +39,14 @@ if (!playlistColumns.includes('last_synced_at')) {
 }
 
 const playlistCategoryColumns = db.prepare('PRAGMA table_info(playlist_categories)').all().map((c) => c.name);
+if (!playlistCategoryColumns.includes('custom_name')) {
+  db.exec('ALTER TABLE playlist_categories ADD COLUMN custom_name TEXT');
+}
 if (!playlistCategoryColumns.includes('enabled')) {
   db.exec('ALTER TABLE playlist_categories ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1');
+}
+if (!playlistCategoryColumns.includes('is_custom')) {
+  db.exec('ALTER TABLE playlist_categories ADD COLUMN is_custom INTEGER NOT NULL DEFAULT 0');
 }
 
 const playlistChannelColumns = db.prepare('PRAGMA table_info(playlist_channels)').all().map((c) => c.name);
