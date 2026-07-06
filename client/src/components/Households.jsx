@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
 
+const TIMEZONES = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : ['UTC']
+
 function Households() {
   const [households, setHouseholds] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [name, setName] = useState('')
-  const [timezone, setTimezone] = useState('UTC')
   const [creating, setCreating] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editName, setEditName] = useState('')
+  const [editTimezone, setEditTimezone] = useState('UTC')
 
   async function load() {
     setLoading(true)
@@ -33,7 +37,7 @@ function Households() {
     try {
       await api('/households', {
         method: 'POST',
-        body: JSON.stringify({ name, timezone }),
+        body: JSON.stringify({ name }),
       })
       setName('')
       await load()
@@ -66,6 +70,25 @@ function Households() {
     }
   }
 
+  function startEdit(household) {
+    setEditingId(household.id)
+    setEditName(household.name)
+    setEditTimezone(household.timezone)
+  }
+
+  async function saveEdit(id) {
+    try {
+      await api(`/households/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name: editName, timezone: editTimezone }),
+      })
+      setEditingId(null)
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   return (
     <div className="households">
       <form className="household-form" onSubmit={handleCreate}>
@@ -74,12 +97,6 @@ function Households() {
           placeholder="Household name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          type="text"
-          placeholder="Timezone (e.g. America/Denver)"
-          value={timezone}
-          onChange={(e) => setTimezone(e.target.value)}
         />
         <button type="submit" disabled={creating}>
           {creating ? 'Adding...' : 'Add household'}
@@ -104,23 +121,52 @@ function Households() {
             </tr>
           </thead>
           <tbody>
-            {households.map((h) => (
-              <tr key={h.id}>
-                <td>{h.name}</td>
-                <td>{h.timezone}</td>
-                <td>{h.device_count}</td>
-                <td>
-                  <button type="button" className="link-button" onClick={() => toggleEnabled(h)}>
-                    {h.enabled ? 'Enabled' : 'Disabled'}
-                  </button>
-                </td>
-                <td>
-                  <button type="button" className="link-button danger" onClick={() => handleDelete(h)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {households.map((h) =>
+              editingId === h.id ? (
+                <tr key={h.id}>
+                  <td>
+                    <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                  </td>
+                  <td>
+                    <select value={editTimezone} onChange={(e) => setEditTimezone(e.target.value)}>
+                      {TIMEZONES.map((tz) => (
+                        <option key={tz} value={tz}>
+                          {tz}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>{h.device_count}</td>
+                  <td colSpan={2}>
+                    <button type="button" className="link-button" onClick={() => saveEdit(h.id)}>
+                      Save
+                    </button>{' '}
+                    <button type="button" className="link-button" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </button>
+                  </td>
+                </tr>
+              ) : (
+                <tr key={h.id}>
+                  <td>{h.name}</td>
+                  <td>{h.timezone}</td>
+                  <td>{h.device_count}</td>
+                  <td>
+                    <button type="button" className="link-button" onClick={() => toggleEnabled(h)}>
+                      {h.enabled ? 'Enabled' : 'Disabled'}
+                    </button>
+                  </td>
+                  <td>
+                    <button type="button" className="link-button" onClick={() => startEdit(h)}>
+                      Edit
+                    </button>{' '}
+                    <button type="button" className="link-button danger" onClick={() => handleDelete(h)}>
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              )
+            )}
           </tbody>
         </table>
       )}
