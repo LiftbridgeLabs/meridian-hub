@@ -1,4 +1,5 @@
 import Devices from './Devices'
+import ManagementCodes from './ManagementCodes'
 import Playlists from './Playlists'
 import Profiles from './Profiles'
 
@@ -14,6 +15,10 @@ function HouseholdDetail({ household, onBack }) {
       <section>
         <h3>Devices</h3>
         <Devices householdId={household.id} />
+      </section>
+      <section>
+        <h3>Management codes</h3>
+        <ManagementCodes householdId={household.id} />
       </section>
       <section>
         <h3>Profiles</h3>

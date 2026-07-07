@@ -58,4 +58,19 @@ if (!profileColumns.includes('assigned_playlist_id')) {
   db.exec('ALTER TABLE profiles ADD COLUMN assigned_playlist_id INTEGER REFERENCES playlists(id) ON DELETE SET NULL');
 }
 
+const deviceColumns = db.prepare('PRAGMA table_info(devices)').all().map((c) => c.name);
+if (!deviceColumns.includes('device_identifier')) {
+  db.exec('ALTER TABLE devices ADD COLUMN device_identifier TEXT');
+}
+db.exec(
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_devices_household_identifier
+   ON devices(household_id, device_identifier)
+   WHERE device_identifier IS NOT NULL`
+);
+
+const pairingRequestColumns = db.prepare('PRAGMA table_info(pairing_requests)').all().map((c) => c.name);
+if (!pairingRequestColumns.includes('device_identifier')) {
+  db.exec('ALTER TABLE pairing_requests ADD COLUMN device_identifier TEXT');
+}
+
 module.exports = db;

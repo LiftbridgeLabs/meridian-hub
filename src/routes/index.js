@@ -3,6 +3,7 @@ const db = require('../db');
 const authRoutes = require('./auth');
 const deviceRoutes = require('./device');
 const householdRoutes = require('./households');
+const manageRoutes = require('./manage');
 const pairRoutes = require('./pair');
 const { requireAuth } = require('../middleware/auth');
 
@@ -14,6 +15,7 @@ router.get('/health', (req, res) => {
 
 router.use('/auth', authRoutes);
 router.use('/device', deviceRoutes);
+router.use('/manage', manageRoutes);
 router.use('/pair', pairRoutes);
 router.use('/households', householdRoutes);
 

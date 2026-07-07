@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS devices (
   name TEXT NOT NULL,
   platform TEXT NOT NULL CHECK (platform IN ('ios', 'tvos', 'android', 'androidtv', 'firetv')),
   auth_token TEXT UNIQUE NOT NULL,
+  device_identifier TEXT,
   assigned_profile_id INTEGER REFERENCES profiles(id) ON DELETE SET NULL,
   assigned_playlist_id INTEGER REFERENCES playlists(id) ON DELETE SET NULL,
   last_seen TEXT,
@@ -118,8 +119,26 @@ CREATE TABLE IF NOT EXISTS pairing_requests (
   code TEXT NOT NULL UNIQUE,
   device_name TEXT NOT NULL,
   platform TEXT NOT NULL CHECK (platform IN ('ios', 'tvos', 'android', 'androidtv', 'firetv')),
+  device_identifier TEXT,
   claimed_device_id INTEGER REFERENCES devices(id) ON DELETE SET NULL,
   claimed_token TEXT,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Admin-issued management codes: created by an admin against a specific
+-- household (optionally pre-assigning a profile/playlist) before the end
+-- user has installed the app. Handed out-of-band; redeeming one creates the
+-- device immediately with no separate approval step. Longer-lived than
+-- pairing_requests since the admin generates these ahead of time.
+CREATE TABLE IF NOT EXISTS management_codes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT NOT NULL UNIQUE,
+  household_id INTEGER NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  device_name TEXT NOT NULL,
+  assigned_profile_id INTEGER REFERENCES profiles(id) ON DELETE SET NULL,
+  assigned_playlist_id INTEGER REFERENCES playlists(id) ON DELETE SET NULL,
+  redeemed_device_id INTEGER REFERENCES devices(id) ON DELETE SET NULL,
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -133,3 +152,5 @@ CREATE INDEX IF NOT EXISTS idx_profiles_household ON profiles(household_id);
 CREATE INDEX IF NOT EXISTS idx_devices_household ON devices(household_id);
 CREATE INDEX IF NOT EXISTS idx_devices_auth_token ON devices(auth_token);
 CREATE INDEX IF NOT EXISTS idx_pairing_requests_code ON pairing_requests(code);
+CREATE INDEX IF NOT EXISTS idx_management_codes_code ON management_codes(code);
+CREATE INDEX IF NOT EXISTS idx_management_codes_household ON management_codes(household_id);

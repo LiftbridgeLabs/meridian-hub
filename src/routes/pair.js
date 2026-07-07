@@ -1,11 +1,10 @@
-const crypto = require('crypto');
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { VALID_PLATFORMS, normalizeCode, getHubUrl, generateDeviceToken } = require('../lib/pairing');
 
 const router = express.Router();
 
-const VALID_PLATFORMS = new Set(['ios', 'tvos', 'android', 'androidtv', 'firetv']);
 const PAIRING_TTL_MINUTES = 15;
 
 function cleanExpiredPairingRequests() {
@@ -14,21 +13,6 @@ function cleanExpiredPairingRequests() {
      WHERE claimed_device_id IS NULL
        AND datetime(expires_at) <= datetime('now')`
   ).run();
-}
-
-function normalizeCode(code) {
-  return String(code || '').trim();
-}
-
-function getHubUrl(req) {
-  if (process.env.HUB_URL) return process.env.HUB_URL;
-  const proto = req.get('x-forwarded-proto') || req.protocol;
-  const host = req.get('x-forwarded-host') || req.get('host');
-  return `${proto}://${host}`;
-}
-
-function generateDeviceToken() {
-  return crypto.randomBytes(32).toString('hex');
 }
 
 function pairingPayload(req, code) {
@@ -47,6 +31,7 @@ router.post('/register', (req, res) => {
   const code = normalizeCode(req.body.code);
   const deviceName = String(req.body.device_name || req.body.deviceName || '').trim();
   const platform = String(req.body.platform || '').trim().toLowerCase();
+  const deviceIdentifier = String(req.body.device_identifier || req.body.deviceIdentifier || '').trim() || null;
 
   if (!/^\d{6}$/.test(code)) {
     return res.status(400).json({ error: 'Pairing code must be 6 digits' });
@@ -71,9 +56,9 @@ router.post('/register', (req, res) => {
     .get(`+${PAIRING_TTL_MINUTES} minutes`).expires_at;
 
   db.prepare(
-    `INSERT INTO pairing_requests (code, device_name, platform, expires_at)
-     VALUES (?, ?, ?, ?)`
-  ).run(code, deviceName, platform, expiresAt);
+    `INSERT INTO pairing_requests (code, device_name, platform, device_identifier, expires_at)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(code, deviceName, platform, deviceIdentifier, expiresAt);
 
   res.status(201).json({
     status: 'pending',
@@ -116,6 +101,20 @@ router.get('/status/:code', (req, res) => {
     hubUrl: getHubUrl(req),
     pairing: pairingPayload(req, code),
   });
+});
+
+router.get('/pending', requireAuth, (req, res) => {
+  cleanExpiredPairingRequests();
+
+  const pending = db
+    .prepare(
+      `SELECT code, device_name, platform, created_at, expires_at
+       FROM pairing_requests
+       WHERE claimed_device_id IS NULL
+       ORDER BY created_at DESC`
+    )
+    .all();
+  res.json(pending);
 });
 
 router.post('/claim', requireAuth, (req, res) => {
@@ -162,22 +161,49 @@ router.post('/claim', requireAuth, (req, res) => {
   const token = generateDeviceToken();
   const deviceName = requestedName || request.device_name;
 
+  const existingDevice = request.device_identifier
+    ? db
+        .prepare('SELECT * FROM devices WHERE household_id = ? AND device_identifier = ?')
+        .get(householdId, request.device_identifier)
+    : null;
+
   const claimPairing = db.transaction(() => {
-    const result = db
-      .prepare(
-        `INSERT INTO devices (
-          household_id, name, platform, auth_token, assigned_profile_id, assigned_playlist_id
-        ) VALUES (?, ?, ?, ?, ?, ?)`
-      )
-      .run(householdId, deviceName, request.platform, token, assignedProfileId, assignedPlaylistId);
+    let deviceId;
+    if (existingDevice) {
+      db.prepare(
+        `UPDATE devices
+         SET name = ?, platform = ?, auth_token = ?,
+             assigned_profile_id = COALESCE(?, assigned_profile_id),
+             assigned_playlist_id = COALESCE(?, assigned_playlist_id)
+         WHERE id = ?`
+      ).run(deviceName, request.platform, token, assignedProfileId, assignedPlaylistId, existingDevice.id);
+      deviceId = existingDevice.id;
+    } else {
+      const result = db
+        .prepare(
+          `INSERT INTO devices (
+            household_id, name, platform, auth_token, device_identifier, assigned_profile_id, assigned_playlist_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          householdId,
+          deviceName,
+          request.platform,
+          token,
+          request.device_identifier,
+          assignedProfileId,
+          assignedPlaylistId
+        );
+      deviceId = result.lastInsertRowid;
+    }
 
     db.prepare(
       `UPDATE pairing_requests
        SET claimed_device_id = ?, claimed_token = ?
        WHERE id = ?`
-    ).run(result.lastInsertRowid, token, request.id);
+    ).run(deviceId, token, request.id);
 
-    return db.prepare('SELECT * FROM devices WHERE id = ?').get(result.lastInsertRowid);
+    return db.prepare('SELECT * FROM devices WHERE id = ?').get(deviceId);
   });
 
   const device = claimPairing();

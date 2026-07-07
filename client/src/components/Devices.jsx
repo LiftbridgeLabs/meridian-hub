@@ -9,16 +9,28 @@ const platformLabels = {
   firetv: 'Fire TV',
 }
 
+function timeAgo(sqliteTimestamp) {
+  const then = new Date(sqliteTimestamp.replace(' ', 'T') + 'Z')
+  const minutes = Math.max(0, Math.round((Date.now() - then.getTime()) / 60000))
+  if (minutes < 1) return 'just now'
+  if (minutes === 1) return '1 minute ago'
+  return `${minutes} minutes ago`
+}
+
 function Devices({ householdId }) {
   const [devices, setDevices] = useState([])
   const [profiles, setProfiles] = useState([])
   const [playlists, setPlaylists] = useState([])
+  const [households, setHouseholds] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [pairingCode, setPairingCode] = useState('')
   const [deviceName, setDeviceName] = useState('')
   const [claiming, setClaiming] = useState(false)
   const [claimResult, setClaimResult] = useState('')
+  const [pendingRequests, setPendingRequests] = useState([])
+  const [pendingHouseholdChoice, setPendingHouseholdChoice] = useState({})
+  const [approvingCode, setApprovingCode] = useState(null)
 
   async function load() {
     setLoading(true)
@@ -39,9 +51,53 @@ function Devices({ householdId }) {
     }
   }
 
+  async function loadPending() {
+    try {
+      const [pending, householdList] = await Promise.all([api('/pair/pending'), api('/households')])
+      setHouseholds(householdList)
+      setPendingRequests(pending)
+      setPendingHouseholdChoice((prev) => {
+        const next = { ...prev }
+        for (const request of pending) {
+          if (!(request.code in next)) next[request.code] = String(householdId)
+        }
+        return next
+      })
+    } catch {
+      // Non-fatal: manual code entry below still works if this poll fails.
+    }
+  }
+
   useEffect(() => {
     load()
   }, [householdId])
+
+  useEffect(() => {
+    loadPending()
+    const interval = setInterval(loadPending, 4000)
+    return () => clearInterval(interval)
+  }, [householdId])
+
+  async function approveDevice(request) {
+    const selectedHouseholdId = pendingHouseholdChoice[request.code]
+    if (!selectedHouseholdId) return
+
+    setApprovingCode(request.code)
+    setError('')
+    try {
+      const result = await api('/pair/claim', {
+        method: 'POST',
+        body: JSON.stringify({ code: request.code, household_id: Number(selectedHouseholdId) }),
+      })
+      setClaimResult(`${result.device.name} paired successfully`)
+      await loadPending()
+      if (Number(selectedHouseholdId) === householdId) await load()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setApprovingCode(null)
+    }
+  }
 
   async function claimDevice(e) {
     e.preventDefault()
@@ -67,6 +123,7 @@ function Devices({ householdId }) {
       setDeviceName('')
       setClaimResult(`${result.device.name} paired successfully`)
       await load()
+      await loadPending()
     } catch (err) {
       setError(err.message)
     } finally {
@@ -109,11 +166,62 @@ function Devices({ householdId }) {
 
   function formatLastSeen(device) {
     if (!device.last_seen) return 'Never'
-    return new Date(device.last_seen).toLocaleString()
+    return new Date(device.last_seen.replace(' ', 'T') + 'Z').toLocaleString()
   }
 
   return (
     <div className="devices">
+      {pendingRequests.length > 0 && (
+        <div className="pending-devices">
+          <h4>Pending devices</h4>
+          <table className="households-table">
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>Platform</th>
+                <th>Registered</th>
+                <th>Household</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingRequests.map((request) => (
+                <tr key={request.code}>
+                  <td>{request.device_name}</td>
+                  <td>{platformLabels[request.platform] || request.platform}</td>
+                  <td>{timeAgo(request.created_at)}</td>
+                  <td>
+                    <select
+                      value={pendingHouseholdChoice[request.code] || ''}
+                      onChange={(e) =>
+                        setPendingHouseholdChoice((prev) => ({ ...prev, [request.code]: e.target.value }))
+                      }
+                    >
+                      {households.map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {h.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn-small primary"
+                      disabled={approvingCode === request.code}
+                      onClick={() => approveDevice(request)}
+                    >
+                      {approvingCode === request.code ? 'Approving...' : 'Approve'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="devices-manual-label">Or enter a code manually:</p>
       <form className="pairing-form" onSubmit={claimDevice}>
         <input
           type="text"

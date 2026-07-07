@@ -33,7 +33,7 @@ function DashboardHome() {
     <div className="dashboard-home">
       <div className="dashboard-home-header">
         <h2>Overview</h2>
-        <p>Created {new Date(stats.created_at).toLocaleDateString()}</p>
+        <p>Created {new Date(stats.created_at.replace(' ', 'T') + 'Z').toLocaleDateString()}</p>
       </div>
       <div className="stats-grid">
         {statCards.map((card) => (
