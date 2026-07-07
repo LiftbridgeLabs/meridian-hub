@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import AccountSettings from './AccountSettings'
 import DashboardHome from './DashboardHome'
 import Households from './Households'
 import HouseholdDetail from './HouseholdDetail'
@@ -6,6 +7,7 @@ import HouseholdDetail from './HouseholdDetail'
 function Dashboard({ user, onLogout }) {
   const [selectedHousehold, setSelectedHousehold] = useState(null)
   const [view, setView] = useState('home')
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
     <div className="dashboard">
@@ -15,10 +17,13 @@ function Dashboard({ user, onLogout }) {
           <span>Meridian Hub</span>
         </span>
         <div className="dashboard-user">
-          <span>{user.username}</span>
+          <button type="button" className="dashboard-user-menu" onClick={() => setSettingsOpen((open) => !open)}>
+            {user.username}
+          </button>
           <button type="button" onClick={onLogout}>
             Log out
           </button>
+          {settingsOpen && <AccountSettings user={user} onClose={() => setSettingsOpen(false)} />}
         </div>
       </header>
       <main className="dashboard-main">

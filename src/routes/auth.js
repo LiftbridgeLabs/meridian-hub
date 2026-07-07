@@ -55,4 +55,61 @@ router.get('/me', requireAuth, (req, res) => {
   res.json(user);
 });
 
+router.put('/password', requireAuth, (req, res) => {
+  const currentPassword = req.body.current_password || req.body.currentPassword;
+  const newPassword = req.body.new_password || req.body.newPassword;
+
+  if (!newPassword || newPassword.length < 8) {
+    return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  }
+
+  const user = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(req.admin.id);
+  if (!user || !bcrypt.compareSync(currentPassword || '', user.password_hash)) {
+    return res.status(401).json({ error: 'Current password is incorrect' });
+  }
+
+  const passwordHash = bcrypt.hashSync(newPassword, 12);
+  db.prepare('UPDATE admin_users SET password_hash = ? WHERE id = ?').run(passwordHash, user.id);
+  res.json({ ok: true });
+});
+
+router.get('/users', requireAuth, (req, res) => {
+  const users = db.prepare('SELECT id, username, role, created_at FROM admin_users ORDER BY created_at ASC').all();
+  res.json(users);
+});
+
+router.post('/users', requireAuth, (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password || password.length < 8) {
+    return res.status(400).json({ error: 'Username and a password of at least 8 characters are required' });
+  }
+
+  const existing = db.prepare('SELECT id FROM admin_users WHERE username = ?').get(username);
+  if (existing) return res.status(409).json({ error: 'That username is already taken' });
+
+  const passwordHash = bcrypt.hashSync(password, 12);
+  const result = db
+    .prepare('INSERT INTO admin_users (username, password_hash) VALUES (?, ?)')
+    .run(username, passwordHash);
+  res
+    .status(201)
+    .json(db.prepare('SELECT id, username, role, created_at FROM admin_users WHERE id = ?').get(result.lastInsertRowid));
+});
+
+router.delete('/users/:id', requireAuth, (req, res) => {
+  const targetId = Number(req.params.id);
+  if (targetId === req.admin.id) {
+    return res.status(400).json({ error: 'You cannot remove your own account' });
+  }
+
+  const { count } = db.prepare('SELECT COUNT(*) AS count FROM admin_users').get();
+  if (count <= 1) {
+    return res.status(400).json({ error: 'Cannot remove the last remaining admin account' });
+  }
+
+  const result = db.prepare('DELETE FROM admin_users WHERE id = ?').run(targetId);
+  if (result.changes === 0) return res.status(404).json({ error: 'User not found' });
+  res.status(204).send();
+});
+
 module.exports = router;

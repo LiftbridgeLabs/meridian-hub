@@ -1,4 +1,5 @@
 const express = require('express');
+const { version } = require('../../package.json');
 const db = require('../db');
 const authRoutes = require('./auth');
 const deviceRoutes = require('./device');
@@ -10,7 +11,7 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 
 router.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ status: 'ok', version });
 });
 
 router.use('/auth', authRoutes);

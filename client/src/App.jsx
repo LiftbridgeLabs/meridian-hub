@@ -3,6 +3,7 @@ import { api, getToken, setToken, clearToken } from './api'
 import AuthForm from './components/AuthForm'
 import ClaimDevice from './components/ClaimDevice'
 import Dashboard from './components/Dashboard'
+import Footer from './components/Footer'
 import './App.css'
 
 function getPairCodeFromLocation() {
@@ -74,18 +75,31 @@ function App() {
   }
 
   if (status === 'loading') return null
+
+  let content
   if (status === 'error') {
-    return (
+    content = (
       <div className="app-shell">
         <h1>Meridian Hub</h1>
         <p>Could not reach the backend. Check the container logs.</p>
       </div>
     )
+  } else if (status === 'setup') {
+    content = <AuthForm mode="setup" onSubmit={handleSetup} />
+  } else if (status === 'login') {
+    content = <AuthForm mode="login" onSubmit={handleLogin} />
+  } else if (pairCode) {
+    content = <ClaimDevice code={pairCode} onDone={clearPairCode} />
+  } else {
+    content = <Dashboard user={user} onLogout={handleLogout} />
   }
-  if (status === 'setup') return <AuthForm mode="setup" onSubmit={handleSetup} />
-  if (status === 'login') return <AuthForm mode="login" onSubmit={handleLogin} />
-  if (pairCode) return <ClaimDevice code={pairCode} onDone={clearPairCode} />
-  return <Dashboard user={user} onLogout={handleLogout} />
+
+  return (
+    <div className="app-root">
+      <div className="app-content">{content}</div>
+      <Footer />
+    </div>
+  )
 }
 
 export default App
