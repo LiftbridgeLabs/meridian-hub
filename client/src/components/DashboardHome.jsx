@@ -32,7 +32,7 @@ function DashboardHome() {
   return (
     <div className="dashboard-home">
       <div className="dashboard-home-header">
-        <h2>{stats.hub_name}</h2>
+        <h2>Overview</h2>
         <p>Created {new Date(stats.created_at).toLocaleDateString()}</p>
       </div>
       <div className="stats-grid">

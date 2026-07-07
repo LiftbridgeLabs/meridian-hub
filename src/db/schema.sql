@@ -2,14 +2,10 @@
 
 CREATE TABLE IF NOT EXISTS hub_settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
-  hub_name TEXT NOT NULL DEFAULT 'Meridian Hub',
   setup_complete INTEGER NOT NULL DEFAULT 0,
   license_key TEXT,
   max_households INTEGER NOT NULL DEFAULT 5,
   jwt_secret TEXT,
-  logo_mime TEXT,
-  logo_data BLOB,
-  logo_updated_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
